@@ -25,7 +25,6 @@ final class PanelSettings: ObservableObject {
 
 struct PanelSettingsView: View {
     @ObservedObject var settings: PanelSettings
-    let done: () -> Void
 
     var body: some View {
         Form {
@@ -42,9 +41,8 @@ struct PanelSettingsView: View {
             }.disabled(!settings.edgeEnabled)
             Toggle(L10n.text("panel.shortcutEnabled"), isOn: $settings.shortcutEnabled)
             Text(L10n.text("panel.behaviorHelp")).font(.caption).foregroundStyle(.secondary)
-            HStack { Spacer(); Button(L10n.text("panel.done"), action: done).keyboardShortcut(.defaultAction) }
         }
         .padding(24)
-        .frame(width: 460)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }

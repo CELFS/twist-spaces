@@ -1,15 +1,24 @@
 import AppKit
+import Combine
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var diagnosticsController: DiagnosticsWindowController?
     private var workspaceController: WorkspacePanelController?
+    private var controlController: WorkspaceControlController?
     private var statusMenu: NSMenu?
+    private var languageObserver: AnyCancellable?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         configureMainMenu()
-        workspaceController = WorkspacePanelController()
+        let model = WorkspaceViewModel()
+        let settings = PanelSettings()
+        workspaceController = WorkspacePanelController(model: model, settings: settings)
+        controlController = WorkspaceControlController(model: model, settings: settings, showPanel: { [weak self] in
+            self?.workspaceController?.present()
+        })
+        workspaceController?.openControl = { [weak self] in self?.showControl() }
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.image = NSImage(
             systemSymbolName: "rectangle.split.2x1",
@@ -19,12 +28,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item.button?.target = self
         item.button?.action = #selector(statusClicked)
         item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        statusItem = item
+        configureStatusMenu()
+        controlController?.present()
+        languageObserver = LanguageSettings.shared.$selection.dropFirst().receive(on: RunLoop.main).sink { [weak self] _ in
+            self?.configureMainMenu()
+            self?.configureStatusMenu()
+            self?.controlController?.window?.title = L10n.text("control.title")
+            self?.workspaceController?.window?.title = L10n.text("workspace.title")
+            self?.diagnosticsController?.window?.title = L10n.text("diagnostics.windowTitle")
+        }
+    }
 
+    private func configureStatusMenu() {
         let menu = NSMenu()
         let workspaces = NSMenuItem(title: L10n.text("menu.workspaces"), action: #selector(showWorkspaces), keyEquivalent: "")
         workspaces.target = self
         menu.addItem(workspaces)
-        let settings = NSMenuItem(title: L10n.text("panel.settings"), action: #selector(showSettings), keyEquivalent: "")
+        let settings = NSMenuItem(title: L10n.text("control.title"), action: #selector(showControl), keyEquivalent: "")
         settings.target = self
         menu.addItem(settings)
         menu.addItem(.separator())
@@ -51,8 +72,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         quit.target = NSApplication.shared
         menu.addItem(quit)
         statusMenu = menu
-        statusItem = item
-        workspaceController?.present()
     }
 
     private func configureMainMenu() {
@@ -60,7 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let appItem = NSMenuItem()
         let appMenu = NSMenu(title: L10n.text("app.name"))
         appMenu.addItem(withTitle: L10n.text("menu.workspaces"), action: #selector(showWorkspaces), keyEquivalent: "1").target = self
-        appMenu.addItem(withTitle: L10n.text("panel.settings"), action: #selector(showSettings), keyEquivalent: ",").target = self
+        appMenu.addItem(withTitle: L10n.text("control.title"), action: #selector(showControl), keyEquivalent: ",").target = self
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: L10n.text("menu.quit"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q").target = NSApplication.shared
         appItem.submenu = appMenu
@@ -84,10 +103,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func showWorkspaces() { workspaceController?.present() }
-    @objc private func showSettings() { workspaceController?.showSettings() }
+    @objc private func showControl() {
+        workspaceController?.collapse()
+        controlController?.present()
+    }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        workspaceController?.present()
+        showControl()
         return true
     }
 

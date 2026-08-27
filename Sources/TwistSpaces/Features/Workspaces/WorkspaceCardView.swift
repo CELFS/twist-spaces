@@ -3,47 +3,36 @@ import SwiftUI
 struct WorkspaceCardView: View {
     let workspace: Workspace
     @ObservedObject var model: WorkspaceViewModel
+    @State private var hovered = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Toggle(isOn: Binding(
+        HStack(spacing: 12) {
+            Toggle(isOn: Binding(
                     get: { model.selectedIDs.contains(workspace.id) },
                     set: { if $0 { model.selectedIDs.insert(workspace.id) } else { model.selectedIDs.remove(workspace.id) } }
-                )) { Text(verbatim: workspace.name).font(.headline) }
-                    .toggleStyle(.checkbox)
-                Spacer()
-                Button(L10n.text("workspace.edit")) { model.edit(workspace) }
+            )) { Text(verbatim: workspace.name) }
+                .toggleStyle(.checkbox).labelsHidden()
+                .accessibilityLabel(workspace.name)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(verbatim: workspace.name).font(.headline).lineLimit(1)
+                ApplicationPairView(workspace: workspace)
             }
-            Text(verbatim: workspace.projectPath).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
-            WorkspaceWindowSummary(titleKey: "workspace.leftWindow", window: workspace.left)
-            WorkspaceWindowSummary(titleKey: "workspace.rightWindow", window: workspace.right)
-            HStack {
-                Label(L10n.text("workspace.nativeLayout"), systemImage: "rectangle.split.2x1").font(.caption).foregroundStyle(.secondary)
-                Spacer()
-                Button(L10n.text("workspace.showWindows")) { Task { await model.showWindows(for: [workspace.id]) } }
-            }
+            Spacer(minLength: 0)
             if let result = model.results[workspace.id] {
-                Text(verbatim: result).font(.caption).textSelection(.enabled)
+                Image(systemName: result.succeeded ? "checkmark" : "exclamationmark.circle")
+                    .foregroundStyle(result.succeeded ? Color.secondary : .orange)
+                    .help(result.message)
+                    .accessibilityLabel(result.message)
             }
+            Button { Task { await model.openApplications(for: [workspace.id]) } } label: {
+                Image(systemName: "arrow.up.forward")
+            }
+            .buttonStyle(.plain).help(L10n.text("launch.open"))
+            .accessibilityLabel(L10n.text("launch.open"))
         }
-        .padding(16)
-        .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.primary.opacity(0.08)))
+        .padding(12)
+        .background(.primary.opacity(hovered ? 0.06 : 0.025), in: RoundedRectangle(cornerRadius: 10))
+        .onHover { hovered = $0 }
         .disabled(model.isBusy)
-    }
-}
-
-struct WorkspaceWindowSummary: View {
-    let titleKey: String
-    let window: SavedWindow
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(L10n.text(titleKey)).font(.caption).foregroundStyle(.secondary)
-            Text(verbatim: window.applicationName).font(.subheadline.weight(.medium))
-            Text(verbatim: window.title.isEmpty ? L10n.text("workspace.untitledWindow") : window.title)
-                .font(.caption).lineLimit(2).help(window.title)
-        }
     }
 }

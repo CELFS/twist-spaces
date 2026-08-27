@@ -1,5 +1,18 @@
 import Foundation
 
+struct SavedApplication: Codable, Identifiable, Equatable, Hashable, Sendable {
+    let name: String
+    let bundleIdentifier: String
+    let bundlePath: String
+
+    var id: String { "\(bundleIdentifier)@\(bundlePath)" }
+
+    var windowRecord: SavedWindow {
+        SavedWindow(applicationName: name, bundleIdentifier: bundleIdentifier, bundlePath: bundlePath,
+                    title: "", document: nil, identifier: nil)
+    }
+}
+
 struct SavedWindow: Codable, Equatable, Sendable {
     let applicationName: String
     let bundleIdentifier: String
@@ -7,6 +20,10 @@ struct SavedWindow: Codable, Equatable, Sendable {
     let title: String
     let document: String?
     let identifier: String?
+
+    var application: SavedApplication {
+        SavedApplication(name: applicationName, bundleIdentifier: bundleIdentifier, bundlePath: bundlePath)
+    }
 
     func matches(_ other: SavedWindow) -> Bool {
         bundleIdentifier == other.bundleIdentifier && bundlePath == other.bundlePath
@@ -23,6 +40,9 @@ struct Workspace: Codable, Identifiable, Equatable, Sendable {
     // Store the requested layout, never substitute ordinary desktop tiling.
     var layout: Layout = .nativeSplitView
 
+    // Keep the version-one window records intact; application opening uses only their app identities.
+    var applications: [SavedApplication] { [left.application, right.application] }
+
     enum Layout: String, Codable, Sendable {
         case nativeSplitView
     }
@@ -35,7 +55,7 @@ struct WorkspaceLibrary: Codable, Equatable, Sendable {
 
     func validate() throws {
         guard version == 1 else { throw WorkspaceError.unsupportedVersion }
-        guard nextID > 0, Set(workspaces.map(\.id)).count == workspaces.count,
+        guard nextID > 0, nextID < Int.max, Set(workspaces.map(\.id)).count == workspaces.count,
               workspaces.allSatisfy({ $0.id > 0 && $0.id < nextID }) else {
             throw WorkspaceError.invalidLibrary
         }
@@ -51,7 +71,7 @@ struct WorkspaceLibrary: Codable, Equatable, Sendable {
 
     static func validate(name: String, projectPath: String) throws {
         guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              projectPath.hasPrefix("/") else { throw WorkspaceError.invalidWorkspace }
+              projectPath.isEmpty || projectPath.hasPrefix("/") else { throw WorkspaceError.invalidWorkspace }
     }
 }
 

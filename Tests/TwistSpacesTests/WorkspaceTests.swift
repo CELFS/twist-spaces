@@ -94,7 +94,7 @@ private func sampleLibrary() -> WorkspaceLibrary {
 }
 
 @Test func workspaceLocalizationDoesNotClaimSplitViewWasApplied() {
-    #expect(L10n.text("workspace.windowsShown").contains("not applied"))
-    #expect(L10n.text("workspace.openBoundary").contains("not implemented"))
-    #expect(L10n.text("workspace.new") == "New workspace")
+    #expect(L10n.text("workspace.windowsShown", language: .english).contains("not applied"))
+    #expect(L10n.text("workspace.openBoundary", language: .english).contains("not implemented"))
+    #expect(L10n.text("workspace.new", language: .english) == "New combination")
 }

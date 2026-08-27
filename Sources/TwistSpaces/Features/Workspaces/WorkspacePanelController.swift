@@ -1,17 +1,21 @@
 import AppKit
+import Combine
 import SwiftUI
 
 @MainActor
-final class WorkspacePanelController: NSWindowController {
-    let model = WorkspaceViewModel()
-    let settings = PanelSettings()
+final class WorkspacePanelController: NSWindowController, NSWindowDelegate {
+    let model: WorkspaceViewModel
+    let settings: PanelSettings
+    var openControl: (() -> Void)?
     private let triggers = PanelTriggers()
-    private var settingsController: NSWindowController?
+    private var settingsObserver: AnyCancellable?
 
-    init() {
-        let panel = NSPanel(
+    init(model: WorkspaceViewModel, settings: PanelSettings) {
+        self.model = model
+        self.settings = settings
+        let panel = WorkspaceDisplayPanel(
             contentRect: NSRect(x: 0, y: 0, width: 460, height: 700),
-            styleMask: [.titled, .closable, .fullSizeContentView], backing: .buffered, defer: false
+            styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false
         )
         panel.title = L10n.text("workspace.title")
         panel.titleVisibility = .hidden
@@ -28,14 +32,22 @@ final class WorkspacePanelController: NSWindowController {
         panel.backgroundColor = .clear
         panel.hasShadow = true
         super.init(window: panel)
+        panel.delegate = self
 
         let effect = NSVisualEffectView()
-        effect.material = .sidebar
+        effect.material = .popover
         effect.blendingMode = .behindWindow
         effect.state = .active
+        effect.wantsLayer = true
+        effect.layer?.cornerRadius = 12
+        effect.layer?.masksToBounds = true
         let content = NSHostingView(rootView: WorkspacePanelView(model: model, close: { [weak self] in
-            self?.window?.orderOut(nil)
-        }, settings: { [weak self] in self?.showSettings() }))
+            self?.collapse()
+        }, settings: { [weak self] in
+            self?.collapse()
+            self?.openControl?()
+        }))
+        content.sizingOptions = []
         content.translatesAutoresizingMaskIntoConstraints = false
         effect.addSubview(content)
         NSLayoutConstraint.activate([
@@ -49,12 +61,22 @@ final class WorkspacePanelController: NSWindowController {
         triggers.toggle = { [weak self] in self?.toggle() }
         triggers.shortcutFailed = { [weak self] in self?.model.error = L10n.text("panel.shortcutFailed") }
         triggers.configure(settings)
+        settingsObserver = settings.objectWillChange.receive(on: RunLoop.main).sink { [weak self] in
+            guard let self else { return }
+            self.triggers.configure(self.settings)
+            if self.window?.isVisible == true { self.position() }
+        }
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
     func present() {
+        position()
+        window?.makeKeyAndOrderFront(nil)
+    }
+
+    private func position() {
         // Use the display containing the pointer; do not move any other application's windows.
         let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
         if let screen {
@@ -63,32 +85,17 @@ final class WorkspacePanelController: NSWindowController {
             let x = settings.leftSide ? frame.minX : frame.maxX - width
             window?.setFrame(NSRect(x: x, y: frame.minY, width: width, height: frame.height), display: true)
         }
-        window?.makeKeyAndOrderFront(nil)
-        NSApplication.shared.activate()
     }
 
     func toggle() {
-        guard window?.attachedSheet == nil else { present(); return }
-        if window?.isVisible == true { window?.orderOut(nil) } else { present() }
+        if window?.isVisible == true { collapse() } else { present() }
     }
 
-    func showSettings() {
-        if settingsController == nil {
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 320),
-                styleMask: [.titled, .closable], backing: .buffered, defer: false)
-            window.title = L10n.text("panel.settings")
-            window.isReleasedWhenClosed = false
-            window.contentViewController = NSHostingController(rootView: PanelSettingsView(settings: settings, done: { [weak self] in
-                guard let self else { return }
-                self.triggers.configure(self.settings)
-                self.settingsController?.close()
-                self.present()
-            }))
-            window.center()
-            settingsController = NSWindowController(window: window)
-        }
-        settingsController?.showWindow(nil)
-        NSApplication.shared.activate()
+    func collapse() { window?.orderOut(nil) }
+
+    func windowDidResignKey(_ notification: Notification) {
+        // Only the display panel collapses. Editing remains in the independent control window.
+        collapse()
     }
 
     func stop() { triggers.stop() }

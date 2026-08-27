@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DiagnosticsView: View {
     @StateObject private var model = DiagnosticsViewModel()
+    @ObservedObject private var language = LanguageSettings.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -53,6 +54,7 @@ struct DiagnosticsView: View {
         }
         .padding(24)
         .frame(minWidth: 700, minHeight: 480)
+        .id(language.selection)
         .onAppear { model.refresh() }
     }
 }
