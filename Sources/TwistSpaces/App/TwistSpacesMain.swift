@@ -10,7 +10,7 @@ enum TwistSpacesMain {
         if arguments.isEmpty {
             let app = NSApplication.shared
             let delegate = AppDelegate()
-            app.setActivationPolicy(.accessory)
+            app.setActivationPolicy(.regular)
             app.delegate = delegate
             withExtendedLifetime(delegate) {
                 app.run()

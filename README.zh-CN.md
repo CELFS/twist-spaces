@@ -6,31 +6,47 @@
 
 ## 当前范围
 
-当前为项目初始化和能力检查工具，尚不是完整的工作区管理器：
+主入口现在是原生毛玻璃工作区面板，已实现真实管理闭环，但尚未完成项目打开和原生 Split View 流程：
 
 - 原生 Swift Package 可执行工程和本地 `.app` 构建脚本。
-- 菜单栏入口，可打开独立的窗口诊断工具。
+- 普通 Dock 应用，同时保留菜单栏图标。左键切换工作区面板，右键打开菜单；诊断仅放在 debug 版本的 **Developer** 子菜单。
+- 真实工作区创建和编辑：项目目录、名称，以及用户明确选定的左右 Cursor/Codex 窗口，不插入示例数据。
+- 原子保存到 `~/Library/Application Support/Twist Spaces/workspaces.json`；文件损坏或版本不支持时禁用保存，不覆盖原文件。
+- **Show windows** 和 **Show selected windows** 恢复并前置已绑定的现有窗口；操作前检查全部选中项，有无法识别的工作区时阻止批次。此操作不是重新打开项目或应用分屏布局。
+- 可设置左右侧、宽度，并主动启用边缘呼出及 Control–Option–Space。面板在鼠标所在显示器打开，保持显示直到明确关闭或切换。
 - 用于 Finder 和 macOS 应用列表的独立应用图标；菜单栏符号保持不变。
 - 只读列出正在运行的图形应用及其真实进程 ID、Bundle ID 和应用路径。
 - 用户主动授权辅助功能后，读取选中应用的窗口标题、文档属性、标识属性、位置、尺寸、最小化状态及按钮支持的动作。
 - 日志区域右上角的复制按钮，不受滚动位置或文本选择影响，可复制完整诊断文本并反馈复制成功。
 - 界面文案通过原生 `Localizable.strings` 的 key 读取，默认英语，目前仅提供 `en` 源资源。代码注释和脚本使用英文；README 提供中英双语，默认英文。
 
-应用不会自动申请权限、打开项目、移动或关闭其他应用窗口、访问应用数据库、调用私有 Spaces API，也不会用普通桌面窗口平铺代替原生 Split View。
+应用不会自动申请权限、新开项目窗口、移动/调整尺寸或关闭其他应用窗口、访问应用数据库、调用私有 Spaces API，也不会用普通桌面窗口平铺代替原生 Split View。选择 **Show windows** 仅授权恢复最小化并前置所选窗口。
 
-诊断窗口是开发验证工具，不是最终的半透明侧边面板。它的尺寸和开关行为不代表最终面板的设计约定。
+诊断仍是独立开发工具。面板尺寸是可配置的当前实现值，不代表最终交互已经约定。保存的目标布局仍是原生 Split View，但自动配对和重新打开项目尚未实现。
 
 ## 构建与启动
 
 使用现有 Command Line Tools，不需要安装包管理器或第三方依赖。在项目根目录执行：
 
 ```bash
-bash claude_jobs/setup-local-signing.sh # One-time setup on this Mac
 bash claude_jobs/build-app.sh
 open "build/debug/Twist Spaces.app"
 ```
 
-应用只显示菜单栏图标，不自动弹出窗口。点击图标，选择 **Window Diagnostics…**。关闭诊断窗口后，应用仍在菜单栏运行。选择 **Quit Twist Spaces** 退出。
+应用启动显示工作区面板，同时保留 Dock 和菜单栏入口。点击 Dock 图标重新打开面板，左键菜单栏图标切换面板。右键菜单栏图标可进入设置、debug 专用的 **Developer > Window Diagnostics…** 和 **Quit Twist Spaces**。Dock「退出」、应用菜单 **Quit Twist Spaces** 及应用内 ⌘Q 均退出同一个应用。关闭面板或诊断窗口不等于退出。
+
+本机固定开发签名已配置，常规构建不要重新运行签名初始化。每次构建后，必须从菜单退出旧进程，再执行上述 `open` 命令。**Refresh** 只读取窗口状态，不会编译或加载新版程序。
+
+## 工作区操作
+
+1. 自行打开目标 Cursor 和 Codex 项目窗口。
+2. 选择 **New workspace**，填写名称和项目目录，从真实列表选择左右窗口，明确确认它们属于该项目，再保存。
+3. 用 **Edit** 修改名称、目录或窗口组合。仅改名时可保留已保存的窗口记录，不要求应用正在运行。
+4. 用 **Show windows**，或勾选多张卡片后点击 **Show selected windows**，前置现有窗口。这些操作明确不会应用 Split View。
+
+项目目录是用户指定的关联，不由标题猜测。运行期间绑定真实 AX 元素，操作前重新校验。重启后只有文档身份唯一且应用及窗口属性完全相符时才自动重绑定；仅有标题或 AXIdentifier 不够，需要编辑工作区重新选择。窗口标题变化也可能要求重新选择。列表仅包含辅助功能返回的窗口，不声称已完整识别全部应用窗口。
+
+**Panel Settings…** 中的边缘触发与快捷键默认关闭，需主动启用。边缘触发采用鼠标所在显示器指定侧的 2 pt 范围，避开菜单栏和 Dock 区域，延迟可配置。点击 **Done** 应用触发设置。显示窗口或鼠标离开都不会自动收起面板。
 
 构建 release 应用包：
 
@@ -75,7 +91,7 @@ bash claude_jobs/build-app.sh release
 
 命令行不会弹出权限提示。退出码：`0` 表示完成，`1` 表示应用或读取错误，`2` 表示需要辅助功能权限，`64` 表示参数错误。读取完成不代表所有可选属性都可用，还应检查每个属性的 `errorCode`。
 
-在界面中选择应用。如果尚未授权，可点击 **Request accessibility access…**，在系统设置中授权 Twist Spaces，返回应用后点击 **Refresh**，再点击 **Inspect windows**。权限归属可能受启动进程影响，因此建议优先通过 `.app` 界面检查。应用不会自动刷新窗口、将诊断报告写入文件或发送到网络。
+在诊断界面中选择应用。如果尚未授权，可点击 **Request accessibility access…**，在系统设置中授权 Twist Spaces，返回应用后点击 **Refresh**，再点击 **Inspect windows**。权限归属可能受启动进程影响，因此建议优先通过 `.app` 界面检查。诊断不会自动刷新、将报告写入文件或发送到网络。工作区编辑器在打开或主动刷新时读取窗口；显示已保存窗口前也会重新检查。
 
 诊断 JSON 包含窗口标题和可能的本地项目路径，分享前请自行检查。进程 ID 和窗口序号仅代表当前运行进程或当前报告中的条目，不是持久化项目标识。部分应用不提供 `AXDocument` 或 `AXIdentifier`，读取失败时会保留 AX 错误码，工具不会根据标题猜测项目配对。
 
@@ -117,7 +133,15 @@ swift test --disable-xctest
 
 兼容性测试使用模拟的窗口读取和属性写入，验证应用与权限检查、进程身份检查、空结果的有界恢复及错误保留。可选窗口属性缺失不会触发恢复，测试不会启用真实应用的无障碍支持。
 
-2026-08-27 初始化检查结果：
+2026-08-27 工作区实现检查结果：
+
+- 31 项 Swift 测试全部通过，包括原有 22 项和新增 9 项工作区测试。新增覆盖持久化/编辑、无效文件保护、精确会话绑定、唯一文档匹配及拒绝仅凭标题重绑定。
+- debug 应用沿用已有固定签名构建，在受限工具沙箱外通过严格签名验证。
+- 已分别实际执行应用菜单退出和应用内 ⌘Q，每次均检查进程消失后重新打开应用；通过真实界面检查工作区面板和创建表单，辅助功能仍为已授权。
+- 实际编辑器返回 1 个 Cursor 窗口，未返回 Codex/ChatGPT 窗口，枚举完整性尚未证明。没有为绕过此限制而保存虚构工作区。真实 Cursor–Codex 配对的端到端保存/显示、批量行为、Dock 右键菜单、边缘触发及全局快捷键仍未验证。
+- 项目重新打开和自动原生 Split View 尚未实现；目标布局仅被保存，尚不执行。
+
+2026-08-27 早期初始化检查记录（工作区实现之前）：
 
 - debug arm64 `.app` 已编译，通过严格签名校验，并成功加载应用包内的英文资源。
 - 5 项 Swift 测试和 7 项命令行参数及错误处理检查全部通过。
@@ -125,13 +149,13 @@ swift test --disable-xctest
 - 两个目标的检查均返回退出码 `2`：Twist Spaces 尚未获得辅助功能权限。实际窗口读取和原生 Split View 配对仍未验证。
 - 菜单栏和诊断界面尚未进行视觉验证。
 
-## 后续验证与待确认事项
+## 剩余实现和验证
 
 1. 检查实际 Cursor 和 Codex 窗口，确认能否可靠地区分不同项目。
 2. 确认复用已有窗口还是新开窗口，再验证如何打开指定项目窗口。
 3. 验证公开辅助功能操作能否将选中的窗口组成原生全屏 Split View。目前尚未实现，也尚未验证。
 4. 确认正式侧边面板的宽度、收起规则、边缘触发范围与延迟、快捷键及多显示器行为。
-5. 核心能力明确后，再实现工作区持久化、编辑、分组和批量打开。
+5. 持久化与编辑已经实现；还需完成真实的单组/批量项目打开和原生 Split View，显示现有窗口不等于这些需求已完成。
 
 Apple 将原生 Split View 与普通桌面窗口平铺区分，Split View 会创建新的桌面空间。按钮暴露 `AXPress` 等动作，并不能证明两扇指定窗口能够自动配对，因此工具不会根据按钮可用性报告支持原生分屏。参考：[Apple Split View 说明](https://support.apple.com/en-ca/guide/mac-help/mchl4fbe2921/mac)、[辅助功能授权 API](https://developer.apple.com/documentation/applicationservices/1459186-axisprocesstrustedwithoptions)、[辅助功能属性读取 API](https://developer.apple.com/documentation/applicationservices/1462085-axuielementcopyattributevalue)。
 
@@ -144,9 +168,9 @@ Package.swift                  原生 Swift Package 入口
 version.json                   应用版本号和构建号的唯一来源
 signing.local.json             被忽略的本机签名证书指纹配置
 Sources/TwistSpaces/App/       应用生命周期与菜单栏
-Sources/TwistSpaces/Features/  诊断窗口与视图模型
-Sources/TwistSpaces/Models/    只读报告结构，不是工作区持久化协议
-Sources/TwistSpaces/Services/  应用枚举、权限检查和 AX 检查
+Sources/TwistSpaces/Features/  工作区面板、编辑器、设置及开发诊断
+Sources/TwistSpaces/Models/    工作区持久化协议和诊断快照
+Sources/TwistSpaces/Services/  本地存储、面板触发、权限检查及 AX 窗口操作
 Sources/TwistSpaces/Resources/ 原生本地化资源
 Tests/TwistSpacesTests/        使用 Swift Testing 的基础测试
 claude_jobs/build-app.sh       构建、打包和本地签名

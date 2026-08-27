@@ -6,31 +6,47 @@ An extensible, personal macOS workspace manager built with Swift 6.1, SwiftUI, a
 
 ## Current scope
 
-This is the initial project scaffold and a capability inspection tool, not a complete workspace manager:
+The main entry now opens a native translucent workspace panel. This is a working management slice, not yet the complete project-opening and native Split View workflow:
 
 - A native Swift Package executable and a script that builds a local `.app` bundle.
-- A menu bar entry that opens a separate window diagnostics tool.
+- A regular Dock app and a menu bar icon. Left-click opens/toggles the workspace panel; right-click opens its menu. Diagnostics lives under **Developer** in debug builds only.
+- Real workspace creation and editing: a project folder, name, and explicitly selected left/right Cursor or Codex windows. No sample workspaces are inserted.
+- Atomic local persistence at `~/Library/Application Support/Twist Spaces/workspaces.json`. Corrupt or unsupported files block saving instead of being overwritten.
+- **Show windows** and **Show selected windows** restore/raise the explicitly bound existing windows. The entire selection is checked before the first window change; an unresolved workspace blocks the batch. This is not project reopening or layout application.
+- Configurable left/right edge, width, opt-in edge activation and Control–Option–Space. The panel opens on the pointer's display and stays open until explicitly closed or toggled.
 - A custom application icon for Finder and macOS application listings; the menu bar symbol remains unchanged.
 - Read-only enumeration of running GUI applications with their actual process IDs, bundle identifiers, and bundle paths.
 - After explicit Accessibility authorization, inspection of the selected application's window titles, document attributes, identifiers, positions, sizes, minimized states, and available button actions.
 - A copy button at the upper-right of the report area that copies the complete diagnostic text, regardless of scrolling or text selection, and confirms a successful copy.
 - UI text resolved through native `Localizable.strings` keys. English is the default language; only `en` source resources are included. Code comments and scripts use English. The README is available in English and Simplified Chinese, with English as the default.
 
-The app does not automatically request permissions, open projects, move or close other applications' windows, access application databases, call private Spaces APIs, or substitute ordinary desktop tiling for native Split View.
+The app does not automatically request permissions, open new project windows, move/resize or close other applications' windows, access application databases, call private Spaces APIs, or substitute ordinary desktop tiling for native Split View. Selecting **Show windows** explicitly authorizes restoring minimized windows and raising that selection only.
 
-The diagnostics window is a development tool, not the final translucent edge panel. Its dimensions and opening/closing behavior do not establish the final panel's design.
+The diagnostics window remains a separate development tool. Panel dimensions are configurable implementation values, not a claim that final interaction design has been agreed. Native Split View remains the saved target layout, but automatic pairing and project reopening are not implemented.
 
 ## Build and launch
 
 Use the existing Command Line Tools. No package manager or third-party installation is required. From the project root:
 
 ```bash
-bash claude_jobs/setup-local-signing.sh # One-time setup on this Mac
 bash claude_jobs/build-app.sh
 open "build/debug/Twist Spaces.app"
 ```
 
-The app displays a menu bar icon without automatically opening a window. Click the icon and choose **Window Diagnostics…**. Closing that window leaves the app running in the menu bar. Choose **Quit Twist Spaces** to exit.
+The app opens the workspace panel and keeps both Dock and menu bar entries. Click the Dock icon to reopen the panel; left-click the menu bar icon to toggle it. Right-click the menu bar icon for settings, debug-only **Developer > Window Diagnostics…**, and **Quit Twist Spaces**. Dock **Quit**, the application menu **Quit Twist Spaces**, and in-app ⌘Q terminate the same application. Closing the panel or diagnostics window does not quit.
+
+The fixed signing identity is already configured on this Mac. Do not rerun signing setup for normal builds. After every build, quit the old process through its menu, then run the `open` command above. **Refresh** reads window state; it does not compile or load a new executable.
+
+## Workspace workflow
+
+1. Open the intended Cursor and Codex project windows yourself.
+2. Choose **New workspace**, enter a name and project folder, and select the actual left/right windows from the live list. Confirm that both belong to the project, then save.
+3. Use **Edit** to change the folder, name, or window pair. Renaming can preserve the stored selection without requiring running applications.
+4. Use **Show windows**, or select several cards and choose **Show selected windows**, to bring those existing windows forward. These controls explicitly do not apply Split View.
+
+The project folder is a user-provided association, not inferred from a title. Session bindings retain actual AX elements and revalidate them before use. After a restart, automatic rebinding requires a unique exact document identity plus the saved application and window attributes. A title or AXIdentifier alone is not enough: edit and select the window again. Changes to a window title can also require reselection. The list contains only windows exposed by Accessibility and is not claimed to include every application window.
+
+In **Panel Settings…**, edge and shortcut activation are off until enabled. Edge activation uses 2 pt on the selected side of the pointer's display, excluding the menu bar and Dock areas, with a configurable delay. Click **Done** to apply trigger settings. Neither showing windows nor moving the pointer away closes the panel.
 
 Build a release bundle:
 
@@ -75,7 +91,7 @@ Get a process ID from the application list, then replace `12345` below with that
 
 The CLI never displays a permission prompt. Exit codes: `0` means completed, `1` indicates an application or inspection error, `2` means Accessibility permission is required, and `64` indicates invalid arguments. A completed inspection does not mean every optional attribute is available; check each attribute's `errorCode` as well.
 
-In the GUI, select an application. If access is missing, click **Request accessibility access…**, authorize Twist Spaces in System Settings, return to the app, click **Refresh**, and then choose **Inspect windows**. Permission attribution can depend on the launching process, so prefer inspection from the `.app` GUI. The app does not automatically refresh windows, save diagnostic reports to disk, or send them over the network.
+In the diagnostics GUI, select an application. If access is missing, click **Request accessibility access…**, authorize Twist Spaces in System Settings, return to the app, click **Refresh**, and then choose **Inspect windows**. Permission attribution can depend on the launching process, so prefer inspection from the `.app` GUI. Diagnostics does not automatically refresh or save reports to disk, or send them over the network. The workspace editor reads windows on opening and on explicit refresh; showing saved windows scans again before acting.
 
 Diagnostic JSON includes window titles and potentially local project paths. Review it before sharing. Process IDs and window ordinals only identify the current process or report; they are not persistent project identities. Some applications do not expose `AXDocument` or `AXIdentifier`. Failed reads preserve AX error codes, and the tool does not guess project pairings from window titles.
 
@@ -117,7 +133,15 @@ The tests cover separate process identities, diagnostic JSON and attribute error
 
 Compatibility tests use simulated window reads and attribute writes to verify application and permission guards, process identity checks, bounded recovery from empty results, and error preservation. Missing optional window attributes do not trigger recovery. Tests do not enable accessibility in a real application.
 
-Initialization checks on 2026-08-27:
+Workspace implementation checks on 2026-08-27:
+
+- All 31 Swift tests passed, including the 22 existing tests and nine new workspace tests. New coverage includes persistence/editing, invalid-file protection, exact session bindings, unique document matching, and rejection of title-only rebinding.
+- The debug app was built with the existing fixed signing identity and passed strict signature verification outside the restricted tool sandbox.
+- The actual app menu's Quit action and in-app ⌘Q were exercised separately; process termination was checked and the new bundle was reopened after each. The workspace panel and creation form were inspected through the real UI; Accessibility remained granted.
+- The live editor returned one Cursor window and no Codex/ChatGPT windows. Enumeration is not proven complete. No fabricated workspace was saved to bypass this limitation. End-to-end saving/showing a real Cursor–Codex pair, batch behavior, Dock's right-click menu, edge activation, and the global shortcut remain unverified.
+- Project reopening and automatic native Split View are not implemented. The target layout is stored, not executed.
+
+Historical initialization checks (before the workspace implementation) on 2026-08-27:
 
 - The debug arm64 `.app` compiled, passed strict signature verification, and loaded its packaged English resources.
 - All five Swift tests and seven CLI argument/error checks passed.
@@ -125,13 +149,13 @@ Initialization checks on 2026-08-27:
 - Both target inspections returned exit code `2`: Twist Spaces has not been granted Accessibility access. Actual window reads and native Split View pairing remain unverified.
 - The menu bar and diagnostics GUI have not yet been visually verified.
 
-## Remaining verification and decisions
+## Remaining implementation and verification
 
 1. Inspect real Cursor and Codex windows and determine whether different projects can be identified reliably.
 2. Decide whether to reuse existing windows or open new ones, then verify how to open the intended project window.
 3. Verify whether public Accessibility operations can pair the selected windows in native fullscreen Split View. This is neither implemented nor verified yet.
 4. Confirm the final edge panel's width, dismissal rules, edge activation area and delay, shortcut, and multiple-display behavior.
-5. Once the core capabilities are established, implement workspace persistence, editing, grouping, and batch opening.
+5. Workspace persistence and editing are implemented. Complete true single/batch project opening and native Split View; showing existing windows is not completion of those requirements.
 
 Apple distinguishes native Split View from ordinary desktop window tiling; Split View creates a new desktop space. Exposing actions such as `AXPress` does not prove that two specific windows can be paired automatically. The tool therefore does not report native Split View support based on button availability. References: [Apple Split View guide](https://support.apple.com/en-ca/guide/mac-help/mchl4fbe2921/mac), [Accessibility authorization API](https://developer.apple.com/documentation/applicationservices/1459186-axisprocesstrustedwithoptions), and [Accessibility attribute API](https://developer.apple.com/documentation/applicationservices/1462085-axuielementcopyattributevalue).
 
@@ -144,9 +168,9 @@ Package.swift                  Native Swift Package entry point
 version.json                   Single source for the application version and build number
 signing.local.json             Ignored machine-specific signing certificate fingerprint
 Sources/TwistSpaces/App/       App lifecycle and menu bar
-Sources/TwistSpaces/Features/  Diagnostics window and view model
-Sources/TwistSpaces/Models/    Read-only reports, not workspace persistence schemas
-Sources/TwistSpaces/Services/  Application catalog, permission checks, and AX inspection
+Sources/TwistSpaces/Features/  Workspace panel, editor, settings, and development diagnostics
+Sources/TwistSpaces/Models/    Workspace persistence schema and diagnostic snapshots
+Sources/TwistSpaces/Services/  Workspace storage, panel triggers, permissions, and AX window operations
 Sources/TwistSpaces/Resources/ Native localization resources
 Tests/TwistSpacesTests/        Basic tests using Swift Testing
 claude_jobs/build-app.sh       Build, bundle, and local signing
