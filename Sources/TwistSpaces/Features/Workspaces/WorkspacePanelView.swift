@@ -39,8 +39,11 @@ struct WorkspacePanelView: View {
                 }.buttonStyle(.plain).disabled(model.library.workspaces.isEmpty || model.isBusy)
                 Spacer()
                 if model.isBusy { ProgressView().controlSize(.small) }
-                Button(L10n.text("launch.batch")) { Task { await model.openApplications(for: model.selectedIDs) } }
+                Button(L10n.text("launch.batchActivate")) { Task { await model.openApplications(for: model.selectedIDs, action: .activate) } }
                     .buttonStyle(.borderedProminent)
+                    .disabled(model.selectedIDs.isEmpty || model.isBusy)
+                Button(L10n.text("launch.batchNew")) { Task { await model.openApplications(for: model.selectedIDs, action: .newWindows) } }
+                    .buttonStyle(.bordered)
                     .disabled(model.selectedIDs.isEmpty || model.isBusy)
             }
         }

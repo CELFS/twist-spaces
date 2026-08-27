@@ -80,6 +80,11 @@ final class WorkspaceViewModel: ObservableObject {
 
     func dismissEditor() { draft = nil }
 
+    func toggleSelection(_ id: Int) {
+        guard !isBusy, library.workspaces.contains(where: { $0.id == id }) else { return }
+        if selectedIDs.contains(id) { selectedIDs.remove(id) } else { selectedIDs.insert(id) }
+    }
+
     func saveDraft(_ draft: WorkspaceDraft) {
         guard canSave, !isBusy, self.draft === draft else { return }
         do {
@@ -98,12 +103,12 @@ final class WorkspaceViewModel: ObservableObject {
         } catch { draft.error = error.localizedDescription }
     }
 
-    func openApplications(for ids: Set<Int>) async {
+    func openApplications(for ids: Set<Int>, action: WorkspaceOpenAction = .activate) async {
         guard !isBusy else { return }
         isBusy = true
         defer { isBusy = false }
         let workspaces = library.workspaces.filter { ids.contains($0.id) }
-        let outcomes = await launcher.open(workspaces)
+        let outcomes = await launcher.open(workspaces, action: action)
         results.merge(outcomes) { _, latest in latest }
     }
 }

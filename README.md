@@ -12,7 +12,8 @@ The app has two separate interfaces: a Control Center for editing and settings, 
 - A regular Dock app opens the Control Center. Left-clicking the menu bar icon toggles the display panel; right-clicking opens its menu. Diagnostics lives under **Developer** in debug builds only.
 - Real combination creation and editing: a name, two applications, and an optional project-folder note. Choose installed or running applications, or browse for an app elsewhere; window or thread discovery is not required. No sample combinations are inserted.
 - Atomic local persistence at `~/Library/Application Support/Twist Spaces/workspaces.json`. Corrupt or unsupported files block saving instead of being overwritten.
-- **Open applications** and **Open selected** launch or activate the saved applications. The entire batch is checked before launching; a missing application blocks the batch. Shared applications open once per batch. This does not open a specific project or apply a layout.
+- Separate **Start or activate** and **New windows** icon buttons, with both batch actions. Activation deduplicates shared apps; new-window requests run for each side of each selected group. A stopped app starts once; a running app receives one supported native New Window command. Missing apps block the batch, and unsupported commands fail visibly without substituting activation or extra app processes.
+- The card's left content area toggles selection without launching; action buttons have 36 pt hit targets, application icons are 32 pt, and cards preview the saved left/right percentages. Edit the split ratio from 10:90 to 90:10; older combinations default to 50:50. The ratio is stored, not applied to native Split View yet.
 - Configurable left/right edge, width, opt-in edge activation and Control–Option–Space. The display panel defaults to 460 pt wide with a 12 pt screen inset. Its native HUD material blurs behind the window at full alpha, rather than exposing sharp desktop content through a faded overlay. It opens on the pointer's display and collapses when it loses focus.
 - All dropdowns share a native picker component with consistent label alignment and bounded control widths. Display and language settings share the same page layout; sliders expand with the window. The interim 340 pt default migrates once to 460 pt; other custom widths and trigger settings are retained.
 - A custom application icon for Finder and macOS application listings; the menu bar symbol remains unchanged.
@@ -42,10 +43,12 @@ The fixed signing identity is already configured on this Mac. Do not rerun signi
 
 1. In the Control Center, choose **New combination**, enter a name, and select two applications. A project-folder note is optional and does not control launching.
 2. Save the combination. Use **Edit** to change it later; Accessibility authorization is not required.
-3. Open the display panel from the menu bar or **Show panel**, select combinations, and choose **Open selected**. The arrow on a row opens that combination's applications.
+3. Open the display panel from the menu bar or **Show panel**. Click a card's left area to select it. The arrow starts/activates its apps; the plus-window icon requests new windows. The footer offers both actions for selected groups.
 4. Use the Control Center's **Language** tab to switch between English, Simplified Chinese, or the system language. The choice is saved.
 
 Application choices merge standard application directories (`/Applications`, `~/Applications`, `/System/Applications`, and `/System/Library/CoreServices/Applications`), running applications, and saved selections. Nested application helpers and background-only bundles are excluded; apps elsewhere can be selected with Browse. The list shows bundle-declared alternate names as well as the display name: this Mac's `ChatGPT.app` declares `Codex` as an alternate name. Selection and deduplication use bundle ID plus path, not the displayed name. Window titles and conversation threads are not used for saving or launching. Opening applications is not proof that the intended project windows are open or paired.
+
+New windows in running apps require existing Accessibility permission. The app looks for an enabled, unambiguous top-level New Window command in English or Chinese, not a generic Cmd-N shortcut. It presses once and checks for a new standard AX window; timeouts are not retried automatically. If creation cannot be confirmed, inspect the target app before retrying. No project-folder route, conversation creation, ordinary window tiling, or native Split View is implied. Cursor's actual New Window menu was observed; automated operation of the Codex host is restricted in this environment, so its end-to-end creation remains unverified.
 
 In the Control Center's display settings, edge and shortcut activation are off until enabled. Edge activation uses 2 pt on the selected side of the pointer's display, excluding the menu bar and Dock areas, with a configurable delay. Settings apply immediately. The display panel collapses on loss of focus; moving the pointer alone does not dismiss it.
 
@@ -136,7 +139,7 @@ Compatibility tests use simulated window reads and attribute writes to verify ap
 
 Current interface and crash-fix checks on 2026-08-27:
 
-- All 49 Swift tests passed, including 50 draft creation/cancellation cycles, saving without window discovery, launch preflight/deduplication/error handling, English/Chinese resource parity, installed-app discovery and aliases, stable selection identities, panel geometry, width migration, and native glass configuration.
+- The earlier 49-test suite covered draft cancellation, persistence, application enumeration, localization, and panel configuration. The 2026-08-28 action/ratio changes add tests for separate activate/new paths, cold startup, per-group creation, explicit failures, menu command matching, ratio compatibility, selection-only clicks, and larger icon hit targets.
 - The debug app was built using the existing fixed signing identity.
 - The real UI displayed a Chinese Control Center and a separate translucent display panel. Eight consecutive new/cancel cycles completed; switching focus away from the display panel returned to the Control Center without the panel remaining open.
 - The earlier crash reports identify an invalid force-unwrapped optional draft binding during sheet dismissal. The editor now retains its own observable draft reference. No claim of exhaustive crash-free operation is made.

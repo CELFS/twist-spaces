@@ -6,33 +6,43 @@ struct WorkspaceCardView: View {
     @State private var hovered = false
 
     var body: some View {
-        HStack(spacing: 12) {
-            Toggle(isOn: Binding(
-                    get: { model.selectedIDs.contains(workspace.id) },
-                    set: { if $0 { model.selectedIDs.insert(workspace.id) } else { model.selectedIDs.remove(workspace.id) } }
-            )) { Text(verbatim: workspace.name) }
-                .toggleStyle(.checkbox).labelsHidden()
-                .accessibilityLabel(workspace.name)
-            VStack(alignment: .leading, spacing: 6) {
-                Text(verbatim: workspace.name).font(.headline).lineLimit(1)
-                ApplicationPairView(workspace: workspace)
+        HStack(spacing: 8) {
+            Button { model.toggleSelection(workspace.id) } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: model.selectedIDs.contains(workspace.id) ? "checkmark.square.fill" : "square")
+                        .font(.system(size: 22))
+                        .foregroundStyle(model.selectedIDs.contains(workspace.id) ? Color.accentColor : Color.secondary)
+                        .frame(width: 32, height: 36)
+                    VStack(alignment: .leading, spacing: 7) {
+                        HStack {
+                            Text(verbatim: workspace.name).font(.headline).lineLimit(1)
+                            Spacer(minLength: 0)
+                            if let result = model.results[workspace.id] {
+                                Image(systemName: result.succeeded ? "checkmark" : "exclamationmark.circle")
+                                    .foregroundStyle(result.succeeded ? Color.secondary : .orange)
+                                    .help(result.message)
+                            }
+                        }
+                        ApplicationPairView(workspace: workspace)
+                        SplitRatioPreview(leftPercentage: workspace.leftPercentage)
+                        if let result = model.results[workspace.id], !result.succeeded {
+                            Text(verbatim: result.message).font(.caption).foregroundStyle(.orange)
+                                .lineLimit(2).help(result.message)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
+                .contentShape(Rectangle())
             }
-            Spacer(minLength: 0)
-            if let result = model.results[workspace.id] {
-                Image(systemName: result.succeeded ? "checkmark" : "exclamationmark.circle")
-                    .foregroundStyle(result.succeeded ? Color.secondary : .orange)
-                    .help(result.message)
-                    .accessibilityLabel(result.message)
-            }
-            Button { Task { await model.openApplications(for: [workspace.id]) } } label: {
-                Image(systemName: "arrow.up.forward")
-            }
-            .buttonStyle(.plain).help(L10n.text("launch.open"))
-            .accessibilityLabel(L10n.text("launch.open"))
+            .buttonStyle(.plain)
+            .accessibilityLabel(String(format: L10n.text("workspace.selectCombination"), workspace.name))
+            .accessibilityValue(L10n.text(model.selectedIDs.contains(workspace.id) ? "workspace.selected" : "workspace.notSelected"))
+            WorkspaceActionButtons(workspaceID: workspace.id, model: model)
         }
         .padding(12)
         .background(.primary.opacity(hovered ? 0.06 : 0.025), in: RoundedRectangle(cornerRadius: 10))
         .onHover { hovered = $0 }
         .disabled(model.isBusy)
+        .accessibilityElement(children: .contain)
     }
 }

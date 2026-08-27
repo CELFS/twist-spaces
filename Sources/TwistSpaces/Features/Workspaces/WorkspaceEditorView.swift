@@ -15,6 +15,7 @@ struct WorkspaceEditorView: View {
             ApplicationPickerView(titleKey: "applications.right", applications: model.applications, selection: $draft.rightApplication) {
                 model.chooseApplication(for: draft, left: false)
             }
+            WorkspaceRatioEditor(draft: draft)
             HStack {
                 TextField(L10n.text("applications.projectNote"), text: $draft.projectPath).textFieldStyle(.roundedBorder)
                 Button(L10n.text("workspace.chooseFolder")) { model.chooseProject(for: draft) }

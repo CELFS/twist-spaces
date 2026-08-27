@@ -39,6 +39,32 @@ struct Workspace: Codable, Identifiable, Equatable, Sendable {
     var right: SavedWindow
     // Store the requested layout, never substitute ordinary desktop tiling.
     var layout: Layout = .nativeSplitView
+    var leftPercentage: Int = 50
+
+    init(id: Int, name: String, projectPath: String, left: SavedWindow, right: SavedWindow,
+         layout: Layout = .nativeSplitView, leftPercentage: Int = 50) {
+        self.id = id
+        self.name = name
+        self.projectPath = projectPath
+        self.left = left
+        self.right = right
+        self.layout = layout
+        self.leftPercentage = leftPercentage
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, name, projectPath, left, right, layout, leftPercentage }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(Int.self, forKey: .id)
+        name = try values.decode(String.self, forKey: .name)
+        projectPath = try values.decode(String.self, forKey: .projectPath)
+        left = try values.decode(SavedWindow.self, forKey: .left)
+        right = try values.decode(SavedWindow.self, forKey: .right)
+        layout = try values.decodeIfPresent(Layout.self, forKey: .layout) ?? .nativeSplitView
+        // Existing libraries have no ratio field; retain their equal split without rewriting them.
+        leftPercentage = try values.decodeIfPresent(Int.self, forKey: .leftPercentage) ?? 50
+    }
 
     // Keep the version-one window records intact; application opening uses only their app identities.
     var applications: [SavedApplication] { [left.application, right.application] }
@@ -61,6 +87,7 @@ struct WorkspaceLibrary: Codable, Equatable, Sendable {
         }
         for workspace in workspaces {
             try Self.validate(name: workspace.name, projectPath: workspace.projectPath)
+            guard (10...90).contains(workspace.leftPercentage) else { throw WorkspaceError.invalidWorkspace }
             for window in [workspace.left, workspace.right] {
                 guard !window.bundleIdentifier.isEmpty, window.bundlePath.hasPrefix("/") else {
                     throw WorkspaceError.invalidLibrary
