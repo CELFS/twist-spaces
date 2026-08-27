@@ -2,6 +2,24 @@ import Foundation
 import Testing
 @testable import TwistSpaces
 
+@Test func nativePickerUsesObservedBackdropInsteadOfHoverLabel() {
+    // macOS 15.4.1, 2026-08-28 01:48:27: exact captured target IDs remained visible.
+    // The display-sized Dock backdrop was layer -1; no layer-20 window covered the preview.
+    let display = CGRect(x: 0, y: 0, width: 1440, height: 900)
+    let left = CGRect(x: 0, y: 0, width: 718, height: 900)
+    let preview = CGRect(x: 948, y: 18, width: 474, height: 548)
+    #expect(NativeSplitGeometry.pickerPoint(left: left, preview: preview, display: display) == CGPoint(x: 1185, y: 292))
+    #expect(NativeSplitGeometry.isPickerBackdrop(display, display: display))
+    #expect(!NativeSplitGeometry.isPickerBackdrop(CGRect(x: -4, y: 0, width: 726, height: 900), display: display))
+    #expect(!NativeSplitGeometry.isPickerBackdrop(CGRect(x: 1031, y: 267, width: 91, height: 30), display: display))
+    // Geometry alone can pass during a transition; production also requires the new Dock backdrop and stability.
+    #expect(NativeSplitGeometry.pickerPoint(left: left, preview: CGRect(x: 738, y: 24, width: 702, height: 814),
+                                          display: display) != nil)
+    // Do not click while the right window still spans the desktop during the transition.
+    #expect(NativeSplitGeometry.pickerPoint(left: left, preview: CGRect(x: 0, y: 25, width: 1440, height: 823),
+                                          display: display) == nil)
+}
+
 @Test func nativeMenuNeverUsesDesktopTiling() {
     #expect(NativeSplitMenu.isLeftCommand("屏幕左侧", ancestors: ["窗口", "全屏幕拼贴"]))
     #expect(NativeSplitMenu.isLeftCommand("Left of Screen", ancestors: ["Window", "Full Screen Tile"]))

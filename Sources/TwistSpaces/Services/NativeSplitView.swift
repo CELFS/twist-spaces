@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import OSLog
 
 // Native fullscreen tiling only: no AX position/size writes and no private Spaces APIs.
 extension NewWindowService {
@@ -13,6 +14,9 @@ extension NewWindowService {
         guard !CFEqual(first.element, second.element) else { throw NativeSplitError.ambiguousWindow }
         let leftID = try windowID(first)
         let rightID = try windowID(second)
+        #if DEBUG
+        Logger(subsystem: "local.twist-spaces", category: "NativeSplit").notice("Captured left pid=\(first.application.pid) id=\(leftID) right pid=\(second.application.pid) id=\(rightID) requested=\(percentage)")
+        #endif
 
         if confirmedPair(first, second, leftID: leftID, rightID: rightID) == nil {
             // Never dismantle an existing fullscreen workspace to reuse one of its windows.
@@ -20,19 +24,31 @@ extension NewWindowService {
                 throw NativeSplitError.alreadyFullscreen
             }
             try await focus(first)
+            let visibleBeforeTiling = Set(windowEntries(onScreen: true).compactMap {
+                ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value
+            })
             try await enterLeftTile(first)
-            try await selectPartner(second, windowID: rightID, beside: first, leftID: leftID)
+            try await selectPartner(second, windowID: rightID, beside: first, leftID: leftID,
+                                    visibleBeforeTiling: visibleBeforeTiling)
         }
         for _ in 0..<30 {
             try Task.checkCancellation()
             if let pair = confirmedPair(first, second, leftID: leftID, rightID: rightID) {
+                #if DEBUG
+                Logger(subsystem: "local.twist-spaces", category: "NativeSplit").notice("Pair confirmed left=\(leftID) right=\(rightID) bothFullscreen=true sameDisplay=true actual=\(pair.percentage) requested=\(percentage)")
+                #endif
                 if abs(pair.percentage - percentage) <= 1 { return pair.percentage }
                 try await dragDivider(pair, percentage: percentage)
                 var actual: Int?
                 for _ in 0..<15 {
                     try await Task.sleep(for: .milliseconds(100))
                     actual = confirmedPair(first, second, leftID: leftID, rightID: rightID)?.percentage
-                    if let actual, abs(actual - percentage) <= 1 { return actual }
+                    if let actual, abs(actual - percentage) <= 1 {
+                        #if DEBUG
+                        Logger(subsystem: "local.twist-spaces", category: "NativeSplit").notice("Divider confirmed left=\(leftID) right=\(rightID) actual=\(actual) requested=\(percentage)")
+                        #endif
+                        return actual
+                    }
                 }
                 if let actual { throw NativeSplitRatioError(requested: percentage, actual: actual) }
                 throw NativeSplitError.pairUnconfirmed
@@ -112,19 +128,28 @@ extension NewWindowService {
         throw NativeSplitError.menuUnavailable
     }
 
-    private func selectPartner(_ window: CapturedWindow, windowID: CGWindowID, beside left: CapturedWindow, leftID: CGWindowID) async throws {
+    private func selectPartner(_ window: CapturedWindow, windowID: CGWindowID, beside left: CapturedWindow,
+                               leftID: CGWindowID, visibleBeforeTiling: Set<CGWindowID>) async throws {
         guard let dockPID = await MainActor.run(body: {
             NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.dock").first?.processIdentifier
         }) else { throw NativeSplitError.selectionUnavailable }
         var stableBounds: CGRect?
-        for _ in 0..<24 {
+        for attempt in 0..<24 {
             try await Task.sleep(for: .milliseconds(125))
             try Task.checkCancellation()
             guard await isCurrent(window.application), await isCurrent(left.application) else { throw NativeSplitError.windowMissing }
             let entries = windowEntries(onScreen: true)
-            // Mission Control exposes transformed preview bounds under the original window IDs.
+            #if DEBUG
+            tracePartnerSelection(entries, leftID: leftID, rightID: windowID, rightPID: window.application.pid,
+                                  dockPID: dockPID, previous: stableBounds, attempt: attempt,
+                                  visibleBeforeTiling: visibleBeforeTiling)
+            #endif
+            // On the verified macOS 15.4.1 picker, preview bounds follow the original window IDs.
             // Dock's AX tree need not expose pressable previews; never infer identity from a title.
-            guard let first = entries.first(where: { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value == leftID }),
+            guard let first = entries.first(where: {
+                      ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value == leftID
+                          && ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == left.application.pid
+                  }),
                   let second = entries.first(where: {
                       ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value == windowID
                           && ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == window.application.pid
@@ -133,9 +158,12 @@ extension NewWindowService {
                   let display = displayContaining(leftBounds),
                   let point = NativeSplitGeometry.pickerPoint(left: leftBounds, preview: preview, display: display),
                   entries.contains(where: {
-                      ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == dockPID
-                          && ($0[kCGWindowLayer as String] as? NSNumber)?.intValue == 20
-                          && bounds(of: $0)?.contains(point) == true
+                      guard ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == dockPID,
+                            let id = ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
+                            !visibleBeforeTiling.contains(id), let frame = bounds(of: $0) else { return false }
+                      // The observed picker backdrop is layer -1; layer 20 may only be a hover label.
+                      // Require a newly visible display-sized Dock backdrop, not any fixed layer.
+                      return NativeSplitGeometry.isPickerBackdrop(frame, display: display)
                   }) else {
                 stableBounds = nil
                 continue
@@ -143,10 +171,50 @@ extension NewWindowService {
             guard stableBounds == preview else { stableBounds = preview; continue }
             // Only click once the exact target thumbnail has stopped animating in the native picker.
             try NativeAX.clickPreview(at: point)
+            #if DEBUG
+            Logger(subsystem: "local.twist-spaces", category: "NativeSplit").notice("Partner click sent id=\(windowID) x=\(point.x) y=\(point.y)")
+            #endif
             return
         }
         throw NativeSplitError.selectionUnavailable
     }
+
+    #if DEBUG
+    // Numeric window metadata only: record each gate independently without changing picker behavior.
+    // Read with: log show --last 10m --predicate 'subsystem == "local.twist-spaces" AND category == "NativeSplit"'
+    private func tracePartnerSelection(_ entries: [[String: Any]], leftID: CGWindowID, rightID: CGWindowID,
+                                       rightPID: pid_t, dockPID: pid_t, previous: CGRect?, attempt: Int,
+                                       visibleBeforeTiling: Set<CGWindowID>) {
+        let first = entries.first { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value == leftID }
+        let second = entries.first { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value == rightID }
+        let left = first.flatMap { bounds(of: $0) }
+        let right = second.flatMap { bounds(of: $0) }
+        let display = left.flatMap { displayContaining($0) }
+        let point = left.flatMap { left in right.flatMap { right in display.flatMap {
+            NativeSplitGeometry.pickerPoint(left: left, preview: right, display: $0)
+        } } }
+        let dock = entries.filter { ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == dockPID }
+        var overlay = false
+        if let point {
+            for entry in dock where (entry[kCGWindowLayer as String] as? NSNumber)?.intValue == 20 {
+                if bounds(of: entry)?.contains(point) == true { overlay = true }
+            }
+        }
+        var newBackdrop = false
+        if let display {
+            for entry in dock {
+                if let id = (entry[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
+                   !visibleBeforeTiling.contains(id), let frame = bounds(of: entry),
+                   NativeSplitGeometry.isPickerBackdrop(frame, display: display) { newBackdrop = true }
+            }
+        }
+        let windows = ([first, second].compactMap { $0 } + dock).map { entry in
+            "id=\(entry[kCGWindowNumber as String] ?? "nil") pid=\(entry[kCGWindowOwnerPID as String] ?? "nil") layer=\(entry[kCGWindowLayer as String] ?? "nil") bounds=\(String(describing: bounds(of: entry)))"
+        }.joined(separator: "; ")
+        let gates = "attempt=\(attempt) leftFound=\(first != nil) rightFound=\(second != nil) rightOwner=\((second?[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == rightPID) display=\(String(describing: display)) geometry=\(point != nil) newBackdrop=\(newBackdrop) dockLayer20=\(overlay) stable=\(right != nil && previous == right)"
+        Logger(subsystem: "local.twist-spaces", category: "NativeSplit").notice("\(gates, privacy: .public); \(windows, privacy: .public)")
+    }
+    #endif
 
     private func bounds(of entry: [String: Any]) -> CGRect? {
         guard let value = entry[kCGWindowBounds as String] as? NSDictionary else { return nil }

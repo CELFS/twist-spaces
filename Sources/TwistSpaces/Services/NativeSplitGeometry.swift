@@ -26,6 +26,11 @@ enum NativeSplitMenu {
 }
 
 enum NativeSplitGeometry {
+    static func isPickerBackdrop(_ frame: CGRect, display: CGRect) -> Bool {
+        // Ignore small Dock hover labels and the backing window for only the tiled left half.
+        frame.contains(display.insetBy(dx: 4, dy: 4))
+    }
+
     static func pickerPoint(left: CGRect, preview: CGRect, display: CGRect) -> CGPoint? {
         guard abs(left.minX - display.minX) <= 4,
               left.height >= display.height - 90,
