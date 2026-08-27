@@ -6,6 +6,7 @@ enum WorkspaceLaunchResult: Equatable {
     case opened
     case startedOrCreated
     case splitApplied(Int)
+    case windowsMatched([MatchedWindow], MatchedWindowLayout)
     case failed(String)
     case blocked
 
@@ -14,6 +15,8 @@ enum WorkspaceLaunchResult: Equatable {
         case .opened: L10n.text("launch.opened")
         case .startedOrCreated: L10n.text("launch.newCompleted")
         case .splitApplied(let percentage): String(format: L10n.text("split.completed"), percentage, 100 - percentage)
+        case .windowsMatched(let windows, let layout):
+            (windows.map(\.message) + [layout.message]).joined(separator: "\n")
         case .failed(let message): message
         case .blocked: L10n.text("launch.blocked")
         }
@@ -22,8 +25,15 @@ enum WorkspaceLaunchResult: Equatable {
     var succeeded: Bool {
         switch self {
         case .opened, .startedOrCreated, .splitApplied: true
+        case .windowsMatched(_, .preserved): true
+        case .windowsMatched(_, .failed): false
         case .failed, .blocked: false
         }
+    }
+
+    var hasMatchedWindows: Bool {
+        if case .windowsMatched = self { return true }
+        return false
     }
 }
 
@@ -33,13 +43,13 @@ final class WorkspaceLauncher {
     private let resolve: @MainActor (SavedApplication) throws -> URL
     private let launch: @MainActor (URL) async throws -> Void
     private let createWindow: @MainActor (URL) async throws -> Void
-    private let openWorkspace: (@MainActor (Workspace, [String: URL], WorkspaceOpenAction) async throws -> Int)?
+    private let openWorkspace: (@MainActor (Workspace, [String: URL], WorkspaceOpenAction) async throws -> WorkspaceLaunchResult)?
 
     init(
         resolve: @escaping @MainActor (SavedApplication) throws -> URL = WorkspaceLauncher.applicationURL,
         launch: @escaping @MainActor (URL) async throws -> Void = WorkspaceLauncher.openApplication,
         createWindow: @escaping @MainActor (URL) async throws -> Void = { try await NewWindowOperation().open($0) },
-        openWorkspace: (@MainActor (Workspace, [String: URL], WorkspaceOpenAction) async throws -> Int)? = nil
+        openWorkspace: (@MainActor (Workspace, [String: URL], WorkspaceOpenAction) async throws -> WorkspaceLaunchResult)? = nil
     ) {
         self.resolve = resolve
         self.launch = launch
@@ -85,9 +95,9 @@ final class WorkspaceLauncher {
         }
         if let openWorkspace {
             var results: [Int: WorkspaceLaunchResult] = [:]
-            // The production path only succeeds after the exact pair and requested ratio are verified.
+            // Only a verified pair and ratio produce splitApplied; matching alone has its own result.
             for workspace in workspaces {
-                do { results[workspace.id] = .splitApplied(try await openWorkspace(workspace, resolved, action)) }
+                do { results[workspace.id] = try await openWorkspace(workspace, resolved, action) }
                 catch { results[workspace.id] = .failed(error.localizedDescription) }
             }
             return results

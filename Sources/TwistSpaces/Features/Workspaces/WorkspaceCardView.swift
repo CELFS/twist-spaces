@@ -25,9 +25,10 @@ struct WorkspaceCardView: View {
                         }
                         ApplicationPairView(workspace: workspace)
                         SplitRatioPreview(leftPercentage: workspace.leftPercentage)
-                        if let result = model.results[workspace.id], !result.succeeded {
-                            Text(verbatim: result.message).font(.caption).foregroundStyle(.orange)
-                                .lineLimit(2).help(result.message)
+                        if let result = model.results[workspace.id], !result.succeeded || result.hasMatchedWindows {
+                            Text(verbatim: result.message).font(.caption)
+                                .foregroundStyle(result.succeeded ? Color.secondary : .orange)
+                                .lineLimit(result.hasMatchedWindows ? 3 : 2).help(result.message)
                         }
                     }
                 }

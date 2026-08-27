@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import OSLog
 
 enum NewWindowError: String, LocalizedError {
     case permissionRequired, unavailable, unsupported, ambiguous, disabled, readFailed, unconfirmed
@@ -36,21 +37,31 @@ actor NewWindowService {
     }
 
     func createWindowToken(in application: ApplicationSnapshot) async throws -> NativeWindowToken {
+        var phase = "permission"
+        defer {
+            #if DEBUG
+            Logger(subsystem: "local.twist-spaces", category: "WindowOpening").notice("Create pid=\(application.pid) phase=\(phase, privacy: .public)")
+            #endif
+        }
         guard AccessibilityPermission.isTrusted else { throw NewWindowError.permissionRequired }
         guard await isCurrent(application) else { throw NewWindowError.unavailable }
         // Reuse the existing bounded Cursor compatibility recovery, without another permission prompt.
         let report = await inspector.inspect(application)
+        phase = "inspect trusted=\(report.accessibilityTrusted) error=\(String(describing: report.windowsErrorCode)) count=\(report.windows.count)"
         guard report.accessibilityTrusted, report.windowsErrorCode == nil else { throw NewWindowError.readFailed }
         let app = AXUIElementCreateApplication(application.pid)
         guard AXUIElementSetMessagingTimeout(app, 0.5) == .success else { throw NewWindowError.readFailed }
         let before = try windows(of: app)
+        phase = "menu beforeCount=\(before.count)"
         let command = try newWindowItem(in: app)
+        phase = "activate"
         try await NewWindowExecution.prepare(isCurrent: {
             await self.isCurrent(application)
         }, activate: {
             await MainActor.run { NSRunningApplication(processIdentifier: application.pid)?.activate(options: []) ?? false }
         })
         let result = AXUIElementPerformAction(command, kAXPressAction as CFString)
+        phase = "command result=\(result.rawValue)"
         // CannotComplete can mean the target handled the action but did not reply in time. Never retry it.
         guard result == .success || result == .cannotComplete else { throw NewWindowError.unconfirmed }
         for _ in 0..<20 {
@@ -59,7 +70,10 @@ actor NewWindowService {
             if let current = try? windows(of: app) {
                 let created = current.filter { candidate in !before.contains(where: { CFEqual($0, candidate) }) }
                 guard created.count <= 1 else { throw NativeSplitError.ambiguousWindow }
-                if let window = created.first { return capture(window, application: application) }
+                if let window = created.first {
+                    phase = "created"
+                    return capture(window, application: application)
+                }
             }
         }
         throw NewWindowError.unconfirmed
@@ -98,6 +112,22 @@ actor NewWindowService {
     }
 
     func release(_ tokens: [NativeWindowToken]) { for token in tokens { capturedWindows[token] = nil } }
+
+    func matchedWindows(_ tokens: [NativeWindowToken]) async throws -> [MatchedWindow] {
+        var elements: [AXUIElement] = []
+        var matches: [MatchedWindow] = []
+        for token in tokens {
+            let window = try await validatedWindow(token)
+            guard !elements.contains(where: { CFEqual($0, window.element) }) else {
+                throw NativeSplitError.ambiguousWindow
+            }
+            elements.append(window.element)
+            matches.append(MatchedWindow(applicationName: window.application.name,
+                                         title: NativeAX.string(window.element, kAXTitleAttribute) ?? "",
+                                         isFullscreen: NativeAX.bool(window.element, "AXFullScreen")))
+        }
+        return matches
+    }
 
     func validatedWindow(_ token: NativeWindowToken) async throws -> CapturedWindow {
         guard let captured = capturedWindows[token], await isCurrent(captured.application) else { throw NativeSplitError.windowMissing }
@@ -142,6 +172,9 @@ actor NewWindowService {
                 }
             }
         }
+        #if DEBUG
+        Logger(subsystem: "local.twist-spaces", category: "WindowOpening").notice("Menu visited=\(index) queued=\(queue.count) candidates=\(candidates.count)")
+        #endif
         guard index == queue.count else { throw NewWindowError.readFailed }
         guard candidates.count <= 1 else { throw NewWindowError.ambiguous }
         guard let command = candidates.first else { throw NewWindowError.unsupported }

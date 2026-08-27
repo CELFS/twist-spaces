@@ -139,3 +139,6 @@
 "split.error.ratioUnavailable" = "无法调整原生分屏分隔条。";
 "split.error.cancelled" = "分屏操作已中断或正在进行中。";
 "split.ratioLimited" = "实际比例为 %d%% / %d%%，未达到设置的 %d%% / %d%%。";
+"launch.windowWithTitle" = "%@ — %@";
+"launch.windowMatched" = "匹配成功：%@ 窗口已打开。";
+"launch.fullscreenPreserved" = "已保留现有全屏窗口及组合，未重新分屏或调整比例。";

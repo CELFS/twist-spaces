@@ -139,3 +139,6 @@
 "split.error.ratioUnavailable" = "Unable to adjust the native Split View divider.";
 "split.error.cancelled" = "Split View operation interrupted or already in progress.";
 "split.ratioLimited" = "Actual split: %d%% / %d%%. Requested %d%% / %d%% could not be applied.";
+"launch.windowWithTitle" = "%@ — %@";
+"launch.windowMatched" = "Matched: %@ window is open.";
+"launch.fullscreenPreserved" = "Existing fullscreen windows and combinations were kept unchanged. No new Split View or ratio was applied.";

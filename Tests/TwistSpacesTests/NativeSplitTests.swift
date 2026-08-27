@@ -53,7 +53,7 @@ import Testing
             #expect(action == .newWindows)
             ratios.append(group.leftPercentage)
             if group.id == 2 { throw NativeSplitError.pairUnconfirmed }
-            return 65
+            return .splitApplied(65)
         })
     let failed = Workspace(id: 2, name: "Pair", projectPath: "", left: first.windowRecord, right: second.windowRecord, leftPercentage: 65)
     let result = await launcher.open([workspace, failed], action: .newWindows)
