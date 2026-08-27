@@ -1,0 +1,17 @@
+"app.name" = "Twist Spaces";
+"menu.diagnostics" = "Window Diagnostics…";
+"menu.quit" = "Quit Twist Spaces";
+"diagnostics.windowTitle" = "Twist Spaces — Window Diagnostics";
+"diagnostics.title" = "Window diagnostics";
+"diagnostics.description" = "Inspect a running application's windows through the public macOS Accessibility API. This tool does not open, move, resize, pair, or close windows.";
+"diagnostics.refresh" = "Refresh";
+"diagnostics.application" = "Application";
+"diagnostics.chooseApplication" = "Choose a running application";
+"diagnostics.inspect" = "Inspect windows";
+"diagnostics.empty" = "Select an application, then inspect its windows. No project matching or layout changes are performed.";
+"diagnostics.appUnavailable" = "The selected application is no longer available. Refresh the application list and select it again.";
+"diagnostics.boundary" = "Window ordinals and process IDs are temporary diagnostic references, not saved project identities. Available window buttons do not prove that native Split View pairing is supported.";
+"permission.granted" = "Accessibility access granted";
+"permission.required" = "Accessibility access required to read windows";
+"permission.request" = "Request accessibility access…";
+"cli.help" = "Twist Spaces\n\nUsage:\n  TwistSpaces                 Start the menu bar app\n  TwistSpaces --list-apps     List running GUI applications as JSON\n  TwistSpaces --inspect PID   Read one application's windows as JSON\n  TwistSpaces --help          Show this help\n\nInspection never requests permission automatically or changes windows.\nExit codes: 0 = completed, 1 = error, 2 = accessibility permission required, 64 = invalid arguments.";

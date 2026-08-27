@@ -1,0 +1,10 @@
+# Local requirements are maintained by the user.
+/temp/
+
+# Swift build products, caches, and local app bundles.
+/.build/
+/build/
+/.swiftpm/
+.DS_Store
+*.xcuserstate
+xcuserdata/
