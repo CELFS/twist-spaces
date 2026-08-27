@@ -137,10 +137,11 @@ The tests cover separate process identities, diagnostic JSON and attribute error
 
 Compatibility tests use simulated window reads and attribute writes to verify application and permission guards, process identity checks, bounded recovery from empty results, and error preservation. Missing optional window attributes do not trigger recovery. Tests do not enable accessibility in a real application.
 
-Current interface and crash-fix checks on 2026-08-27:
+Current interface and action checks on 2026-08-28:
 
-- The earlier 49-test suite covered draft cancellation, persistence, application enumeration, localization, and panel configuration. The 2026-08-28 action/ratio changes add tests for separate activate/new paths, cold startup, per-group creation, explicit failures, menu command matching, ratio compatibility, selection-only clicks, and larger icon hit targets.
-- The debug app was built using the existing fixed signing identity.
+- All 60 Swift tests passed. The 11 new tests cover separate activate/new paths, cold startup, per-group creation, explicit failures, menu command matching, ratio compatibility, selection-only clicks, and larger icon hit targets; the earlier 49 tests are retained.
+- The debug app was built and strictly verified using the existing fixed signing identity. The previous process was quit through the app menu, confirmed stopped, and the new bundle was opened.
+- The real UI showed separate activate/new icon buttons and ratio previews. Selecting and deselecting a card updated both batch buttons without launching applications. The editor slider updated its draft from 50:50 to 55:45; the test draft was cancelled without saving.
 - The real UI displayed a Chinese Control Center and a separate translucent display panel. Eight consecutive new/cancel cycles completed; switching focus away from the display panel returned to the Control Center without the panel remaining open.
 - The earlier crash reports identify an invalid force-unwrapped optional draft binding during sheet dismissal. The editor now retains its own observable draft reference. No claim of exhaustive crash-free operation is made.
 - End-to-end saving/launching real combinations, language switching, Dock's context menu, edge activation, the global shortcut, and native Split View remain unverified in this pass. Unit tests do not substitute for those checks.
