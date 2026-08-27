@@ -40,10 +40,11 @@ struct DiagnosticReportView: View {
             .padding(.horizontal, 12)
             .padding(.top, 6)
 
-            ScrollView([.vertical, .horizontal]) {
+            ScrollView(.vertical) {
                 Text(verbatim: report.isEmpty ? L10n.text("diagnostics.empty") : report)
                     .font(.system(.body, design: .monospaced))
                     .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
                     .padding(12)
             }
