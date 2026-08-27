@@ -5,6 +5,8 @@
 /.build/
 /build/
 /.swiftpm/
+# Machine-specific certificate fingerprint; the private key stays in the login keychain.
+/signing.local.json
 .DS_Store
 *.xcuserstate
 xcuserdata/

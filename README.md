@@ -25,6 +25,7 @@ The diagnostics window is a development tool, not the final translucent edge pan
 Use the existing Command Line Tools. No package manager or third-party installation is required. From the project root:
 
 ```bash
+bash claude_jobs/setup-local-signing.sh # One-time setup on this Mac
 bash claude_jobs/build-app.sh
 open "build/debug/Twist Spaces.app"
 ```
@@ -37,7 +38,9 @@ Build a release bundle:
 bash claude_jobs/build-app.sh release
 ```
 
-Build artifacts go into `build/`; caches and temporary build files stay in `.build/`. Both directories are ignored by Git. The script only applies a local ad-hoc signature. It does not install into `/Applications`, obtain certificates, notarize the app, or configure launch at login. Rebuilding or moving the app may require renewing Accessibility authorization. This is not a distribution signature.
+Build artifacts go into `build/`; caches and temporary build files stay in `.build/`. Both directories are ignored by Git. One-time signing setup creates or reuses a local development identity in the login keychain and pins its certificate fingerprint in the ignored `signing.local.json`. It restricts certificate trust to code signing for the current user; it does not change TLS trust, system-wide trust, Gatekeeper, or Accessibility permissions. Temporary private-key files are encrypted and removed after setup.
+
+Builds use that same identity and stop if it is unavailable; they never fall back to ad-hoc signing or create replacement certificates. Switching from the old ad-hoc build to this identity requires authorizing the new identity once. Subsequent builds are intended to retain the same code identity, but actual permission retention must be checked on macOS. Neither script installs the app into `/Applications`, notarizes it, or configures launch at login. This is a local development signature, not a distribution signature.
 
 ## Version management
 
@@ -57,7 +60,7 @@ After editing, run `bash claude_jobs/build-app.sh` or `bash claude_jobs/build-ap
 
 Saving the JSON alone does not update an existing or running app; rebuild, then quit and reopen the app to use the new bundle.
 
-## Read-only inspection
+## Window inspection
 
 ```bash
 "build/debug/Twist Spaces.app/Contents/MacOS/TwistSpaces" --help
@@ -112,6 +115,8 @@ swift test --disable-xctest
 
 The tests cover separate process identities, diagnostic JSON and attribute error preservation, permission-blocked versus empty reports, English resources, missing localization keys, and copying complete reports. Clipboard tests use private pasteboards and do not modify the user's general clipboard. They do not inspect real windows or request permissions. XCTest is disabled because this project uses Swift Testing and does not require full Xcode.
 
+Compatibility tests use simulated window reads and attribute writes to verify application and permission guards, process identity checks, bounded recovery from empty results, and error preservation. Missing optional window attributes do not trigger recovery. Tests do not enable accessibility in a real application.
+
 Initialization checks on 2026-08-27:
 
 - The debug arm64 `.app` compiled, passed strict signature verification, and loaded its packaged English resources.
@@ -137,6 +142,7 @@ App/Info.plist                 Application bundle metadata
 App/Assets/                    Source artwork, macOS icon, and generation prompt
 Package.swift                  Native Swift Package entry point
 version.json                   Single source for the application version and build number
+signing.local.json             Ignored machine-specific signing certificate fingerprint
 Sources/TwistSpaces/App/       App lifecycle and menu bar
 Sources/TwistSpaces/Features/  Diagnostics window and view model
 Sources/TwistSpaces/Models/    Read-only reports, not workspace persistence schemas
@@ -144,6 +150,7 @@ Sources/TwistSpaces/Services/  Application catalog, permission checks, and AX in
 Sources/TwistSpaces/Resources/ Native localization resources
 Tests/TwistSpacesTests/        Basic tests using Swift Testing
 claude_jobs/build-app.sh       Build, bundle, and local signing
+claude_jobs/setup-local-signing.sh One-time local signing identity setup
 claude_jobs/build-icon.sh      Export macOS icon sizes from the approved PNG
 ```
 

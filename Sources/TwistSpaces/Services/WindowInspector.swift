@@ -3,7 +3,34 @@ import Foundation
 
 // AX calls can block while another application responds. Keep them off the UI actor.
 actor WindowInspector {
-    func inspect(_ application: ApplicationSnapshot) -> DiagnosticReport {
+    func inspect(_ application: ApplicationSnapshot) async -> DiagnosticReport {
+        await CursorAccessibility.inspect(application) {
+            readWindows(application)
+        } enable: {
+            await enableCursorAccessibility(application)
+        }
+    }
+
+    // This internal compatibility step only follows a successful but empty Cursor window read.
+    private func enableCursorAccessibility(_ application: ApplicationSnapshot) async -> CursorAccessibilityResult {
+        let currentApplication = await MainActor.run {
+            ApplicationCatalog.runningApplications().first { $0.pid == application.pid }
+        }
+        return CursorAccessibility.enable(
+            application,
+            isTrusted: AccessibilityPermission.isTrusted,
+            currentApplication: currentApplication
+        ) {
+            let element = AXUIElementCreateApplication(application.pid)
+            let timeoutError = AXUIElementSetMessagingTimeout(element, 1)
+            guard timeoutError == .success else { return timeoutError }
+            // Electron's documented opt-in exposes accessibility information; it does not change window layout.
+            return AXUIElementSetAttributeValue(element, CursorAccessibility.attribute as CFString, kCFBooleanTrue)
+        }
+
+    }
+
+    private func readWindows(_ application: ApplicationSnapshot) -> DiagnosticReport {
         guard AccessibilityPermission.isTrusted else {
             return DiagnosticReport(
                 application: application,

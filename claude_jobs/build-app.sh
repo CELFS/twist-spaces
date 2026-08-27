@@ -2,7 +2,7 @@
 # Purpose: Build a local Twist Spaces.app with the system Swift toolchain, without dependencies.
 # Usage: bash claude_jobs/build-app.sh [debug|release] (default: debug).
 # Output: build/<configuration>/Twist Spaces.app; no installation, launch, or Git changes.
-# Signing: Ad-hoc sign the generated bundle locally; no certificates or notarization.
+# Signing: Use the fixed identity in signing.local.json; never fall back to ad-hoc signing.
 # Version: Read version.json and write its values into the generated app's Info.plist.
 set -euo pipefail
 
@@ -33,6 +33,25 @@ if ! APP_BUILD="$(plutil -extract build raw -expect integer "$VERSION_FILE")"; t
 fi
 if [[ ! "$APP_BUILD" =~ ^[1-9][0-9]*$ ]]; then
     printf 'Invalid version.json: "build" must be a positive integer.\n' >&2
+    exit 1
+fi
+
+SIGNING_FILE="$ROOT/signing.local.json"
+if [[ ! -f "$SIGNING_FILE" ]]; then
+    printf 'Missing local signing configuration. Run once: bash claude_jobs/setup-local-signing.sh\n' >&2
+    exit 1
+fi
+if ! SIGNING_IDENTITY="$(plutil -extract identity raw -expect string "$SIGNING_FILE")"; then
+    printf 'Invalid signing.local.json: "identity" must be a certificate fingerprint.\n' >&2
+    exit 1
+fi
+if [[ ! "$SIGNING_IDENTITY" =~ ^[A-F0-9]{40}$ ]]; then
+    printf 'Invalid signing.local.json: expected a 40-character certificate SHA-1 fingerprint.\n' >&2
+    exit 1
+fi
+VALID_IDENTITIES="$(security find-identity -v -p codesigning)"
+if ! printf '%s\n' "$VALID_IDENTITIES" | awk -v identity="$SIGNING_IDENTITY" '$2 == identity { found=1 } END { exit !found }'; then
+    printf 'The configured signing identity is unavailable. Unlock or restore the original login keychain identity; no ad-hoc fallback is used.\n' >&2
     exit 1
 fi
 
@@ -75,7 +94,8 @@ cp "$ROOT/App/Assets/AppIcon.icns" "$APP_PATH/Contents/Resources/AppIcon.icns"
 # Packaged apps resolve resources from Contents/Resources, independently of SwiftPM's build cache.
 ditto "$RESOURCE_BUNDLE" "$APP_PATH/Contents/Resources/TwistSpaces_TwistSpaces.bundle"
 plutil -lint "$APP_PATH/Contents/Info.plist"
-codesign --force --sign - --identifier local.twist-spaces "$APP_PATH"
+codesign --force --sign "$SIGNING_IDENTITY" --timestamp=none --identifier local.twist-spaces "$APP_PATH"
 codesign --verify --strict "$APP_PATH"
 printf 'Built: %s\n' "$APP_PATH"
 printf 'Version: %s (build %s)\n' "$APP_VERSION" "$APP_BUILD"
+printf 'Signing identity: %s\n' "$SIGNING_IDENTITY"

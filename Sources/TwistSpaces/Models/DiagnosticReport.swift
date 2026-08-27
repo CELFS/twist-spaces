@@ -37,6 +37,7 @@ struct DiagnosticReport: Codable, Sendable {
     let accessibilityTrusted: Bool
     let windowsErrorCode: Int32?
     let windows: [WindowSnapshot]
+    var cursorAccessibility: CursorAccessibilityResult? = nil
 }
 
 enum DiagnosticJSON {

@@ -25,6 +25,7 @@
 使用现有 Command Line Tools，不需要安装包管理器或第三方依赖。在项目根目录执行：
 
 ```bash
+bash claude_jobs/setup-local-signing.sh # One-time setup on this Mac
 bash claude_jobs/build-app.sh
 open "build/debug/Twist Spaces.app"
 ```
@@ -37,7 +38,9 @@ open "build/debug/Twist Spaces.app"
 bash claude_jobs/build-app.sh release
 ```
 
-构建产物位于 `build/`，缓存和临时构建文件位于 `.build/`，两个目录均已加入 Git 忽略规则。脚本仅执行本地 ad-hoc 签名，不安装到 `/Applications`、不申请证书、不公证、不设置开机启动。重新构建或移动应用后，可能需要重新授权辅助功能。当前签名不是发布签名。
+构建产物位于 `build/`，缓存和临时构建文件位于 `.build/`，两个目录均已加入 Git 忽略规则。一次性签名配置会在登录钥匙串创建或复用本地开发签名身份，并将证书指纹固定在被忽略的 `signing.local.json` 中。证书信任仅限当前用户的代码签名用途，不修改 TLS 信任、系统级信任、Gatekeeper 或辅助功能权限。临时私钥文件经过加密，配置结束后删除。
+
+构建固定使用同一身份；身份不可用时直接停止，不回退到 ad-hoc 签名，也不创建替代证书。从旧 ad-hoc 构建切换到该身份后，需要为新身份授权一次。后续构建旨在保持相同代码身份，但实际权限保留仍需在 macOS 上验证。两个脚本均不会将应用安装到 `/Applications`、进行公证或设置开机启动。当前为本地开发签名，不是发布签名。
 
 ## 版本管理
 
@@ -57,7 +60,7 @@ bash claude_jobs/build-app.sh release
 
 仅保存 JSON 不会更新已有或正在运行的应用；需要重新构建，再退出并重新打开应用。
 
-## 只读检查
+## 窗口检查
 
 ```bash
 "build/debug/Twist Spaces.app/Contents/MacOS/TwistSpaces" --help
@@ -112,6 +115,8 @@ swift test --disable-xctest
 
 测试覆盖进程身份区分、诊断 JSON 和属性错误保留、权限不足与空结果的区别、英文资源、缺失本地化 key 的显示及完整报告复制。剪贴板测试使用私有剪贴板，不修改用户的通用剪贴板。测试不会读取真实窗口或申请权限。项目使用 Swift Testing，因此关闭 XCTest，不要求安装完整 Xcode。
 
+兼容性测试使用模拟的窗口读取和属性写入，验证应用与权限检查、进程身份检查、空结果的有界恢复及错误保留。可选窗口属性缺失不会触发恢复，测试不会启用真实应用的无障碍支持。
+
 2026-08-27 初始化检查结果：
 
 - debug arm64 `.app` 已编译，通过严格签名校验，并成功加载应用包内的英文资源。
@@ -137,6 +142,7 @@ App/Info.plist                 应用包元信息
 App/Assets/                    源图、macOS 图标和生成提示词
 Package.swift                  原生 Swift Package 入口
 version.json                   应用版本号和构建号的唯一来源
+signing.local.json             被忽略的本机签名证书指纹配置
 Sources/TwistSpaces/App/       应用生命周期与菜单栏
 Sources/TwistSpaces/Features/  诊断窗口与视图模型
 Sources/TwistSpaces/Models/    只读报告结构，不是工作区持久化协议
@@ -144,6 +150,7 @@ Sources/TwistSpaces/Services/  应用枚举、权限检查和 AX 检查
 Sources/TwistSpaces/Resources/ 原生本地化资源
 Tests/TwistSpacesTests/        使用 Swift Testing 的基础测试
 claude_jobs/build-app.sh       构建、打包和本地签名
+claude_jobs/setup-local-signing.sh 一次性本地签名身份配置
 claude_jobs/build-icon.sh      从已确认的 PNG 导出 macOS 图标尺寸
 ```
 
