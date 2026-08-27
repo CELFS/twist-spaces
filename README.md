@@ -50,6 +50,8 @@ Application choices merge standard application directories (`/Applications`, `~/
 
 New windows in running apps require existing Accessibility permission. The app looks for an enabled, unambiguous top-level New Window command in English or Chinese, not a generic Cmd-N shortcut. It presses once and checks for a new standard AX window; timeouts are not retried automatically. If creation cannot be confirmed, inspect the target app before retrying. No project-folder route, conversation creation, ordinary window tiling, or native Split View is implied. Cursor's actual New Window menu was observed; automated operation of the Codex host is restricted in this environment, so its end-to-end creation remains unverified.
 
+A rejected foreground activation request is not treated as an exited application. The new-window path rechecks process identity and still sends the validated menu command once; success continues to require observing a new window. User testing of the preceding build opened only a normal Cursor window and reported an unavailable Codex application. The activation guard is corrected, but this exact real-app combination still needs retesting; native Split View remains unimplemented.
+
 In the Control Center's display settings, edge and shortcut activation are off until enabled. Edge activation uses 2 pt on the selected side of the pointer's display, excluding the menu bar and Dock areas, with a configurable delay. Settings apply immediately. The display panel collapses on loss of focus; moving the pointer alone does not dismiss it.
 
 Build a release bundle:
@@ -139,8 +141,8 @@ Compatibility tests use simulated window reads and attribute writes to verify ap
 
 Current interface and action checks on 2026-08-28:
 
-- All 60 Swift tests passed. The 11 new tests cover separate activate/new paths, cold startup, per-group creation, explicit failures, menu command matching, ratio compatibility, selection-only clicks, and larger icon hit targets; the earlier 49 tests are retained.
-- The debug app was built and strictly verified using the existing fixed signing identity. The previous process was quit through the app menu, confirmed stopped, and the new bundle was opened.
+- All 63 Swift tests passed. The 11 action/ratio tests cover separate activate/new paths, cold startup, per-group creation, explicit failures, menu command matching, ratio compatibility, selection-only clicks, and larger icon hit targets; three activation regressions cover a rejected foreground request, an exited process, and a process change during activation. The earlier 49 tests are retained.
+- Before the activation-guard fix, the UI build was strictly verified using the existing fixed signing identity. Its previous process was quit through the app menu, confirmed stopped, and that bundle was opened. These UI checks do not establish that the activation fix works with the real Cursor/Codex pair.
 - The real UI showed separate activate/new icon buttons and ratio previews. Selecting and deselecting a card updated both batch buttons without launching applications. The editor slider updated its draft from 50:50 to 55:45; the test draft was cancelled without saving.
 - The real UI displayed a Chinese Control Center and a separate translucent display panel. Eight consecutive new/cancel cycles completed; switching focus away from the display panel returned to the Control Center without the panel remaining open.
 - The earlier crash reports identify an invalid force-unwrapped optional draft binding during sheet dismissal. The editor now retains its own observable draft reference. No claim of exhaustive crash-free operation is made.

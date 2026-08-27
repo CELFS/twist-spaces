@@ -33,9 +33,11 @@ actor NewWindowService {
         guard AXUIElementSetMessagingTimeout(app, 0.5) == .success else { throw NewWindowError.readFailed }
         let before = try windows(of: app)
         let command = try newWindowItem(in: app)
-        guard await isCurrent(application) else { throw NewWindowError.unavailable }
-        let activated = await MainActor.run { NSRunningApplication(processIdentifier: application.pid)?.activate(options: []) ?? false }
-        guard activated else { throw NewWindowError.unavailable }
+        try await NewWindowExecution.prepare(isCurrent: {
+            await self.isCurrent(application)
+        }, activate: {
+            await MainActor.run { NSRunningApplication(processIdentifier: application.pid)?.activate(options: []) ?? false }
+        })
         let result = AXUIElementPerformAction(command, kAXPressAction as CFString)
         // CannotComplete can mean the target handled the action but did not reply in time. Never retry it.
         guard result == .success || result == .cannotComplete else { throw NewWindowError.unconfirmed }
