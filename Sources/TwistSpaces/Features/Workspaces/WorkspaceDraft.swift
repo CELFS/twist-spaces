@@ -29,8 +29,8 @@ final class WorkspaceDraft: ObservableObject, Identifiable {
         try WorkspaceLibrary.validate(name: name, projectPath: projectPath)
         guard let leftApplication, let rightApplication else { throw WorkspaceError.selectWindows }
         // Retain legacy window metadata if its application was not changed by the user.
-        let left = original.flatMap { $0.left.application == leftApplication ? $0.left : nil } ?? leftApplication.windowRecord
-        let right = original.flatMap { $0.right.application == rightApplication ? $0.right : nil } ?? rightApplication.windowRecord
+        let left = original.flatMap { $0.left.application.id == leftApplication.id ? $0.left : nil } ?? leftApplication.windowRecord
+        let right = original.flatMap { $0.right.application.id == rightApplication.id ? $0.right : nil } ?? rightApplication.windowRecord
         return Workspace(id: id, name: name.trimmingCharacters(in: .whitespacesAndNewlines), projectPath: projectPath, left: left, right: right)
     }
 }

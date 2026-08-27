@@ -42,15 +42,13 @@ struct WorkspaceControlView: View {
                 PanelSettingsView(settings: settings)
                     .tabItem { Text(L10n.text("control.display")) }.tag(1)
 
-                VStack(alignment: .leading, spacing: 16) {
-                    Picker(L10n.text("language.title"), selection: $language.selection) {
+                SettingsPage {
+                    AppPicker(titleKey: "language.title", selection: $language.selection, width: .compact) {
                         Text(L10n.text("language.system")).tag(AppLanguage.system)
                         Text(L10n.text("language.english")).tag(AppLanguage.english)
                         Text(L10n.text("language.chinese")).tag(AppLanguage.simplifiedChinese)
                     }
-                    Spacer()
                 }
-                .padding(24)
                 .tabItem { Text(L10n.text("language.title")) }.tag(2)
             }
             if let error = model.error {

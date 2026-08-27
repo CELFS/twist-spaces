@@ -108,3 +108,5 @@
 "language.system" = "跟随系统";
 "language.english" = "English";
 "language.chinese" = "简体中文";
+"applications.nameWithAliases" = "%@（%@）";
+"applications.aliasSeparator" = "、";

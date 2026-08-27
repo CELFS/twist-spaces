@@ -90,9 +90,7 @@ private let assistantApp = SavedApplication(name: "Assistant", bundleIdentifier:
 @Test @MainActor func applicationListIncludesMoreThanCursorAndCodexAndDeduplicatesProcesses() {
     let directory = fixtureDirectory()
     let model = WorkspaceViewModel(store: WorkspaceStore(url: directory.appendingPathComponent("workspaces.json")), catalog: {
-        [ApplicationSnapshot(pid: 1, name: editorApp.name, bundleIdentifier: editorApp.bundleIdentifier, bundlePath: editorApp.bundlePath),
-         ApplicationSnapshot(pid: 2, name: assistantApp.name, bundleIdentifier: assistantApp.bundleIdentifier, bundlePath: assistantApp.bundlePath),
-         ApplicationSnapshot(pid: 3, name: editorApp.name, bundleIdentifier: editorApp.bundleIdentifier, bundlePath: editorApp.bundlePath)]
+        [editorApp, assistantApp, editorApp]
     })
     model.refreshApplications()
     #expect(model.applications.count == 2)

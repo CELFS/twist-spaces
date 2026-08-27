@@ -28,7 +28,7 @@ struct DiagnosticsView: View {
             }
 
             HStack {
-                Picker(L10n.text("diagnostics.application"), selection: $model.selectedPID) {
+                AppPicker(titleKey: "diagnostics.application", selection: $model.selectedPID, width: .wide) {
                     Text(L10n.text("diagnostics.chooseApplication"))
                         .tag(nil as Int32?)
                     ForEach(model.applications) { app in

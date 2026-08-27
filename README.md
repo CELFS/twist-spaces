@@ -6,23 +6,24 @@ An extensible, personal macOS workspace manager built with Swift 6.1, SwiftUI, a
 
 ## Current scope
 
-The main entry now opens a native translucent workspace panel. This is a working management slice, not yet the complete project-opening and native Split View workflow:
+The app has two separate interfaces: a Control Center for editing and settings, and a translucent desktop display panel for selecting and opening combinations. Native Split View is not yet implemented.
 
 - A native Swift Package executable and a script that builds a local `.app` bundle.
-- A regular Dock app and a menu bar icon. Left-click opens/toggles the workspace panel; right-click opens its menu. Diagnostics lives under **Developer** in debug builds only.
-- Real workspace creation and editing: a project folder, name, and explicitly selected left/right Cursor or Codex windows. No sample workspaces are inserted.
+- A regular Dock app opens the Control Center. Left-clicking the menu bar icon toggles the display panel; right-clicking opens its menu. Diagnostics lives under **Developer** in debug builds only.
+- Real combination creation and editing: a name, two applications, and an optional project-folder note. Choose installed or running applications, or browse for an app elsewhere; window or thread discovery is not required. No sample combinations are inserted.
 - Atomic local persistence at `~/Library/Application Support/Twist Spaces/workspaces.json`. Corrupt or unsupported files block saving instead of being overwritten.
-- **Show windows** and **Show selected windows** restore/raise the explicitly bound existing windows. The entire selection is checked before the first window change; an unresolved workspace blocks the batch. This is not project reopening or layout application.
-- Configurable left/right edge, width, opt-in edge activation and Control–Option–Space. The panel opens on the pointer's display and stays open until explicitly closed or toggled.
+- **Open applications** and **Open selected** launch or activate the saved applications. The entire batch is checked before launching; a missing application blocks the batch. Shared applications open once per batch. This does not open a specific project or apply a layout.
+- Configurable left/right edge, width, opt-in edge activation and Control–Option–Space. The display panel defaults to 460 pt wide with a 12 pt screen inset. Its native HUD material blurs behind the window at full alpha, rather than exposing sharp desktop content through a faded overlay. It opens on the pointer's display and collapses when it loses focus.
+- All dropdowns share a native picker component with consistent label alignment and bounded control widths. Display and language settings share the same page layout; sliders expand with the window. The interim 340 pt default migrates once to 460 pt; other custom widths and trigger settings are retained.
 - A custom application icon for Finder and macOS application listings; the menu bar symbol remains unchanged.
 - Read-only enumeration of running GUI applications with their actual process IDs, bundle identifiers, and bundle paths.
 - After explicit Accessibility authorization, inspection of the selected application's window titles, document attributes, identifiers, positions, sizes, minimized states, and available button actions.
 - A copy button at the upper-right of the report area that copies the complete diagnostic text, regardless of scrolling or text selection, and confirms a successful copy.
-- UI text resolved through native `Localizable.strings` keys. English is the default language; only `en` source resources are included. Code comments and scripts use English. The README is available in English and Simplified Chinese, with English as the default.
+- English and Simplified Chinese UI, selectable in the Control Center with a follow-system option. Text uses native `Localizable.strings` keys. Comments and scripts use English; this README defaults to English.
 
-The app does not automatically request permissions, open new project windows, move/resize or close other applications' windows, access application databases, call private Spaces APIs, or substitute ordinary desktop tiling for native Split View. Selecting **Show windows** explicitly authorizes restoring minimized windows and raising that selection only.
+The app does not automatically request permissions, open specific project windows, move/resize or close other applications' windows, access application databases, call private Spaces APIs, or substitute ordinary desktop tiling for native Split View.
 
-The diagnostics window remains a separate development tool. Panel dimensions are configurable implementation values, not a claim that final interaction design has been agreed. Native Split View remains the saved target layout, but automatic pairing and project reopening are not implemented.
+Diagnostics remains a separate development tool. Existing saved window metadata is preserved when its application is unchanged; the current opening action uses applications, not window bindings. Native Split View remains the saved target layout, but automatic pairing and project reopening are not implemented.
 
 ## Build and launch
 
@@ -33,20 +34,20 @@ bash claude_jobs/build-app.sh
 open "build/debug/Twist Spaces.app"
 ```
 
-The app opens the workspace panel and keeps both Dock and menu bar entries. Click the Dock icon to reopen the panel; left-click the menu bar icon to toggle it. Right-click the menu bar icon for settings, debug-only **Developer > Window Diagnostics…**, and **Quit Twist Spaces**. Dock **Quit**, the application menu **Quit Twist Spaces**, and in-app ⌘Q terminate the same application. Closing the panel or diagnostics window does not quit.
+The app opens the Control Center and keeps both Dock and menu bar entries. Click the Dock icon to reopen the Control Center; left-click the menu bar icon to toggle the display panel. The right-click menu includes both interfaces, debug-only **Developer > Window Diagnostics…**, and **Quit Twist Spaces**. Dock **Quit**, the application menu **Quit Twist Spaces**, and in-app ⌘Q terminate the same application. Closing a window or collapsing the panel does not quit.
 
 The fixed signing identity is already configured on this Mac. Do not rerun signing setup for normal builds. After every build, quit the old process through its menu, then run the `open` command above. **Refresh** reads window state; it does not compile or load a new executable.
 
 ## Workspace workflow
 
-1. Open the intended Cursor and Codex project windows yourself.
-2. Choose **New workspace**, enter a name and project folder, and select the actual left/right windows from the live list. Confirm that both belong to the project, then save.
-3. Use **Edit** to change the folder, name, or window pair. Renaming can preserve the stored selection without requiring running applications.
-4. Use **Show windows**, or select several cards and choose **Show selected windows**, to bring those existing windows forward. These controls explicitly do not apply Split View.
+1. In the Control Center, choose **New combination**, enter a name, and select two applications. A project-folder note is optional and does not control launching.
+2. Save the combination. Use **Edit** to change it later; Accessibility authorization is not required.
+3. Open the display panel from the menu bar or **Show panel**, select combinations, and choose **Open selected**. The arrow on a row opens that combination's applications.
+4. Use the Control Center's **Language** tab to switch between English, Simplified Chinese, or the system language. The choice is saved.
 
-The project folder is a user-provided association, not inferred from a title. Session bindings retain actual AX elements and revalidate them before use. After a restart, automatic rebinding requires a unique exact document identity plus the saved application and window attributes. A title or AXIdentifier alone is not enough: edit and select the window again. Changes to a window title can also require reselection. The list contains only windows exposed by Accessibility and is not claimed to include every application window.
+Application choices merge standard application directories (`/Applications`, `~/Applications`, `/System/Applications`, and `/System/Library/CoreServices/Applications`), running applications, and saved selections. Nested application helpers and background-only bundles are excluded; apps elsewhere can be selected with Browse. The list shows bundle-declared alternate names as well as the display name: this Mac's `ChatGPT.app` declares `Codex` as an alternate name. Selection and deduplication use bundle ID plus path, not the displayed name. Window titles and conversation threads are not used for saving or launching. Opening applications is not proof that the intended project windows are open or paired.
 
-In **Panel Settings…**, edge and shortcut activation are off until enabled. Edge activation uses 2 pt on the selected side of the pointer's display, excluding the menu bar and Dock areas, with a configurable delay. Click **Done** to apply trigger settings. Neither showing windows nor moving the pointer away closes the panel.
+In the Control Center's display settings, edge and shortcut activation are off until enabled. Edge activation uses 2 pt on the selected side of the pointer's display, excluding the menu bar and Dock areas, with a configurable delay. Settings apply immediately. The display panel collapses on loss of focus; moving the pointer alone does not dismiss it.
 
 Build a release bundle:
 
@@ -91,7 +92,7 @@ Get a process ID from the application list, then replace `12345` below with that
 
 The CLI never displays a permission prompt. Exit codes: `0` means completed, `1` indicates an application or inspection error, `2` means Accessibility permission is required, and `64` indicates invalid arguments. A completed inspection does not mean every optional attribute is available; check each attribute's `errorCode` as well.
 
-In the diagnostics GUI, select an application. If access is missing, click **Request accessibility access…**, authorize Twist Spaces in System Settings, return to the app, click **Refresh**, and then choose **Inspect windows**. Permission attribution can depend on the launching process, so prefer inspection from the `.app` GUI. Diagnostics does not automatically refresh or save reports to disk, or send them over the network. The workspace editor reads windows on opening and on explicit refresh; showing saved windows scans again before acting.
+In the diagnostics GUI, select an application. If access is missing, click **Request accessibility access…**, authorize Twist Spaces in System Settings, return to the app, click **Refresh**, and then choose **Inspect windows**. Permission attribution can depend on the launching process, so prefer inspection from the `.app` GUI. Diagnostics does not automatically refresh or save reports to disk, or send them over the network. Combination editing and application launching do not scan windows.
 
 Diagnostic JSON includes window titles and potentially local project paths. Review it before sharing. Process IDs and window ordinals only identify the current process or report; they are not persistent project identities. Some applications do not expose `AXDocument` or `AXIdentifier`. Failed reads preserve AX error codes, and the tool does not guess project pairings from window titles.
 
@@ -133,7 +134,15 @@ The tests cover separate process identities, diagnostic JSON and attribute error
 
 Compatibility tests use simulated window reads and attribute writes to verify application and permission guards, process identity checks, bounded recovery from empty results, and error preservation. Missing optional window attributes do not trigger recovery. Tests do not enable accessibility in a real application.
 
-Workspace implementation checks on 2026-08-27:
+Current interface and crash-fix checks on 2026-08-27:
+
+- All 49 Swift tests passed, including 50 draft creation/cancellation cycles, saving without window discovery, launch preflight/deduplication/error handling, English/Chinese resource parity, installed-app discovery and aliases, stable selection identities, panel geometry, width migration, and native glass configuration.
+- The debug app was built using the existing fixed signing identity.
+- The real UI displayed a Chinese Control Center and a separate translucent display panel. Eight consecutive new/cancel cycles completed; switching focus away from the display panel returned to the Control Center without the panel remaining open.
+- The earlier crash reports identify an invalid force-unwrapped optional draft binding during sheet dismissal. The editor now retains its own observable draft reference. No claim of exhaustive crash-free operation is made.
+- End-to-end saving/launching real combinations, language switching, Dock's context menu, edge activation, the global shortcut, and native Split View remain unverified in this pass. Unit tests do not substitute for those checks.
+
+Historical workspace checks on 2026-08-27 (before the interface split and crash fix; these did not establish editor stability):
 
 - All 31 Swift tests passed, including the 22 existing tests and nine new workspace tests. New coverage includes persistence/editing, invalid-file protection, exact session bindings, unique document matching, and rejection of title-only rebinding.
 - The debug app was built with the existing fixed signing identity and passed strict signature verification outside the restricted tool sandbox.
@@ -154,8 +163,8 @@ Historical initialization checks (before the workspace implementation) on 2026-0
 1. Inspect real Cursor and Codex windows and determine whether different projects can be identified reliably.
 2. Decide whether to reuse existing windows or open new ones, then verify how to open the intended project window.
 3. Verify whether public Accessibility operations can pair the selected windows in native fullscreen Split View. This is neither implemented nor verified yet.
-4. Confirm the final edge panel's width, dismissal rules, edge activation area and delay, shortcut, and multiple-display behavior.
-5. Workspace persistence and editing are implemented. Complete true single/batch project opening and native Split View; showing existing windows is not completion of those requirements.
+4. Verify edge activation, shortcut, and multiple-display behavior. The agreed dismissal rule is collapse on loss of focus.
+5. Application-combination persistence, editing, and launching are implemented. Specific project opening and native Split View remain incomplete; application launch is not completion of those requirements.
 
 Apple distinguishes native Split View from ordinary desktop window tiling; Split View creates a new desktop space. Exposing actions such as `AXPress` does not prove that two specific windows can be paired automatically. The tool therefore does not report native Split View support based on button availability. References: [Apple Split View guide](https://support.apple.com/en-ca/guide/mac-help/mchl4fbe2921/mac), [Accessibility authorization API](https://developer.apple.com/documentation/applicationservices/1459186-axisprocesstrustedwithoptions), and [Accessibility attribute API](https://developer.apple.com/documentation/applicationservices/1462085-axuielementcopyattributevalue).
 

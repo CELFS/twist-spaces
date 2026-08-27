@@ -108,3 +108,5 @@
 "language.system" = "Follow system";
 "language.english" = "English";
 "language.chinese" = "简体中文";
+"applications.nameWithAliases" = "%@ (%@)";
+"applications.aliasSeparator" = ", ";

@@ -8,10 +8,13 @@ struct ApplicationPickerView: View {
 
     var body: some View {
         HStack {
-            Picker(L10n.text(titleKey), selection: $selection) {
-                Text(L10n.text("applications.select")).tag(nil as SavedApplication?)
+            AppPicker(titleKey: titleKey, selection: Binding<String?>(
+                get: { selection?.id },
+                set: { id in selection = applications.first { $0.id == id } }
+            )) {
+                Text(L10n.text("applications.select")).tag(nil as String?)
                 ForEach(applications) { application in
-                    Text(verbatim: application.name).tag(Optional(application))
+                    Text(verbatim: application.name).tag(Optional(application.id))
                 }
             }
             Button(L10n.text("applications.browse"), action: browse)

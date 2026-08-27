@@ -15,10 +15,10 @@ final class WorkspaceViewModel: ObservableObject {
 
     private let store: WorkspaceStore
     private let launcher: WorkspaceLauncher
-    private let catalog: @MainActor () -> [ApplicationSnapshot]
+    private let catalog: @MainActor () -> [SavedApplication]
 
     init(store: WorkspaceStore = .standard, launcher: WorkspaceLauncher = WorkspaceLauncher(),
-         catalog: @escaping @MainActor () -> [ApplicationSnapshot] = ApplicationCatalog.runningApplications) {
+         catalog: @escaping @MainActor () -> [SavedApplication] = ApplicationCatalog.selectableApplications) {
         self.store = store
         self.launcher = launcher
         self.catalog = catalog
@@ -53,13 +53,10 @@ final class WorkspaceViewModel: ObservableObject {
     }
 
     func refreshApplications() {
-        var choices = library.workspaces.flatMap(\.applications)
+        // Fresh metadata takes priority over a saved display name; identity is still bundle ID + path.
+        var choices = catalog().filter { $0.bundleIdentifier != Bundle.main.bundleIdentifier }
+        choices += library.workspaces.flatMap(\.applications)
         choices += [draft?.leftApplication, draft?.rightApplication].compactMap { $0 }
-        choices += catalog().compactMap { app in
-            guard let bundleIdentifier = app.bundleIdentifier, let bundlePath = app.bundlePath,
-                  bundleIdentifier != Bundle.main.bundleIdentifier else { return nil }
-            return SavedApplication(name: app.name, bundleIdentifier: bundleIdentifier, bundlePath: bundlePath)
-        }
         var seen = Set<String>()
         applications = choices.filter { seen.insert($0.id).inserted }.sorted {
             $0.name.localizedStandardCompare($1.name) == .orderedAscending
@@ -73,13 +70,10 @@ final class WorkspaceViewModel: ObservableObject {
         picker.directoryURL = URL(fileURLWithPath: "/Applications")
         picker.prompt = L10n.text("applications.choose")
         guard picker.runModal() == .OK, let url = picker.url else { return }
-        guard let bundle = Bundle(url: url), let identifier = bundle.bundleIdentifier else {
+        guard let application = ApplicationIdentity.read(at: url) else {
             draft.error = L10n.text("applications.invalid")
             return
         }
-        let name = (bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
-            ?? (bundle.object(forInfoDictionaryKey: "CFBundleName") as? String) ?? url.deletingPathExtension().lastPathComponent
-        let application = SavedApplication(name: name, bundleIdentifier: identifier, bundlePath: url.path)
         if left { draft.leftApplication = application } else { draft.rightApplication = application }
         refreshApplications()
     }

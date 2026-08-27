@@ -14,7 +14,7 @@ final class WorkspacePanelController: NSWindowController, NSWindowDelegate {
         self.model = model
         self.settings = settings
         let panel = WorkspaceDisplayPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 460, height: 700),
+            contentRect: NSRect(x: 0, y: 0, width: PanelAppearance.defaultWidth, height: 700),
             styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false
         )
         panel.title = L10n.text("workspace.title")
@@ -34,13 +34,7 @@ final class WorkspacePanelController: NSWindowController, NSWindowDelegate {
         super.init(window: panel)
         panel.delegate = self
 
-        let effect = NSVisualEffectView()
-        effect.material = .popover
-        effect.blendingMode = .behindWindow
-        effect.state = .active
-        effect.wantsLayer = true
-        effect.layer?.cornerRadius = 12
-        effect.layer?.masksToBounds = true
+        let effect = PanelGlassView(frame: .zero)
         let content = NSHostingView(rootView: WorkspacePanelView(model: model, close: { [weak self] in
             self?.collapse()
         }, settings: { [weak self] in
@@ -49,6 +43,7 @@ final class WorkspacePanelController: NSWindowController, NSWindowDelegate {
         }))
         content.sizingOptions = []
         content.translatesAutoresizingMaskIntoConstraints = false
+        // Keep the background translucent without fading text, icons, or controls.
         effect.addSubview(content)
         NSLayoutConstraint.activate([
             content.leadingAnchor.constraint(equalTo: effect.leadingAnchor),
@@ -80,10 +75,7 @@ final class WorkspacePanelController: NSWindowController, NSWindowDelegate {
         // Use the display containing the pointer; do not move any other application's windows.
         let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
         if let screen {
-            let frame = screen.visibleFrame
-            let width = min(settings.width, frame.width)
-            let x = settings.leftSide ? frame.minX : frame.maxX - width
-            window?.setFrame(NSRect(x: x, y: frame.minY, width: width, height: frame.height), display: true)
+            window?.setFrame(PanelAppearance.frame(in: screen.visibleFrame, width: settings.width, leftSide: settings.leftSide), display: true)
         }
     }
 
