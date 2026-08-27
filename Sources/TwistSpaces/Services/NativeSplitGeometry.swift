@@ -48,11 +48,17 @@ enum NativeSplitGeometry {
         guard left.width > 0, right.width > 0, gap >= 0, gap <= 24,
               abs(left.minX - display.minX) <= tolerance,
               abs(right.maxX - display.maxX) <= tolerance,
-              abs(left.minY - right.minY) <= tolerance,
-              abs(left.maxY - right.maxY) <= tolerance,
-              left.height >= display.height - 90,
-              left.minY >= display.minY - tolerance,
-              left.maxY <= display.maxY + tolerance else { return nil }
+              coversFullscreenHeight(left, display: display),
+              coversFullscreenHeight(right, display: display) else { return nil }
         return Int((left.width / (left.width + right.width) * 100).rounded())
+    }
+
+    private static func coversFullscreenHeight(_ frame: CGRect, display: CGRect) -> Bool {
+        // Native fullscreen toolbars can be separate windows: one app's main AX/CG window
+        // starts below its toolbar while its partner starts at the display's top edge.
+        // Keep the existing 90-point top allowance, but validate BOTH windows independently.
+        // Production still requires both AXFullScreen flags and both exact window IDs on screen.
+        frame.minY >= display.minY - 4 && frame.height >= display.height - 90
+            && abs(frame.maxY - display.maxY) <= 4
     }
 }

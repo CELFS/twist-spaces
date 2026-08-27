@@ -26,6 +26,8 @@ actor NewWindowService {
     struct CapturedWindow {
         let application: ApplicationSnapshot
         let element: AXUIElement
+        var windowID: CGWindowID? = nil
+        var existingWindowIDs: Set<CGWindowID>? = nil
     }
     var capturedWindows: [NativeWindowToken: CapturedWindow] = [:]
     private var nextWindowToken = 1
@@ -60,6 +62,8 @@ actor NewWindowService {
         }, activate: {
             await MainActor.run { NSRunningApplication(processIdentifier: application.pid)?.activate(options: []) ?? false }
         })
+        // Snapshot before our single command: old windows may have identical frames, even off screen.
+        let beforeWindowIDs = windowServerIDs(for: application.pid)
         let result = AXUIElementPerformAction(command, kAXPressAction as CFString)
         phase = "command result=\(result.rawValue)"
         // CannotComplete can mean the target handled the action but did not reply in time. Never retry it.
@@ -69,11 +73,30 @@ actor NewWindowService {
             guard await isCurrent(application) else { throw NewWindowError.unavailable }
             if let current = try? windows(of: app) {
                 let created = current.filter { candidate in !before.contains(where: { CFEqual($0, candidate) }) }
+                phase = "observe beforeAX=\(before.count) currentAX=\(current.count) newAX=\(created.count) newCG=\(windowServerIDs(for: application.pid).subtracting(beforeWindowIDs).count)"
                 guard created.count <= 1 else { throw NativeSplitError.ambiguousWindow }
                 if let window = created.first {
-                    phase = "created"
-                    return capture(window, application: application)
+                    let captured = CapturedWindow(application: application, element: window)
+                    // AX and WindowServer publish a new window asynchronously. Preserve the creation
+                    // snapshot even if its geometry is not ready yet; never issue another command.
+                    let id = try? windowID(captured, excluding: beforeWindowIDs)
+                    phase = "created id=\(String(describing: id))"
+                    return capture(window, application: application, windowID: id, existingWindowIDs: beforeWindowIDs)
                 }
+                // Some apps expose their focused document before listing it in AXWindows.
+                // Accept it only when it maps to one window created by this exact request.
+                if let focused = NativeAX.element(app, kAXFocusedWindowAttribute) {
+                    phase += " focusedRole=\(NativeAX.string(focused, kAXRoleAttribute) ?? "nil") focusedSubrole=\(NativeAX.string(focused, kAXSubroleAttribute) ?? "nil")"
+                    let candidate = CapturedWindow(application: application, element: focused)
+                    if NewWindowCommand.isStandardWindow(role: NativeAX.string(focused, kAXRoleAttribute),
+                                                         subrole: NativeAX.string(focused, kAXSubroleAttribute)),
+                       let id = try? windowID(candidate, excluding: beforeWindowIDs), !beforeWindowIDs.contains(id) {
+                        phase = "created focused id=\(id)"
+                        return capture(focused, application: application, windowID: id, existingWindowIDs: beforeWindowIDs)
+                    }
+                }
+            } else {
+                phase = "observe AXWindows read failed"
             }
         }
         throw NewWindowError.unconfirmed
@@ -87,10 +110,12 @@ actor NewWindowService {
         }
     }
 
-    private func capture(_ window: AXUIElement, application: ApplicationSnapshot) -> NativeWindowToken {
+    private func capture(_ window: AXUIElement, application: ApplicationSnapshot, windowID: CGWindowID? = nil,
+                         existingWindowIDs: Set<CGWindowID>? = nil) -> NativeWindowToken {
         let token = NativeWindowToken(value: nextWindowToken)
         nextWindowToken += 1
-        capturedWindows[token] = CapturedWindow(application: application, element: window)
+        capturedWindows[token] = CapturedWindow(application: application, element: window, windowID: windowID,
+                                               existingWindowIDs: existingWindowIDs)
         return token
     }
 
@@ -126,6 +151,11 @@ actor NewWindowService {
                                          title: NativeAX.string(window.element, kAXTitleAttribute) ?? "",
                                          isFullscreen: NativeAX.bool(window.element, "AXFullScreen")))
         }
+        #if DEBUG
+        if tokens.count == 2, let left = capturedWindows[tokens[0]], let right = capturedWindows[tokens[1]] {
+            traceMatchedPair(left, right)
+        }
+        #endif
         return matches
     }
 
@@ -133,7 +163,9 @@ actor NewWindowService {
         guard let captured = capturedWindows[token], await isCurrent(captured.application) else { throw NativeSplitError.windowMissing }
         let app = AXUIElementCreateApplication(captured.application.pid)
         _ = AXUIElementSetMessagingTimeout(app, 0.5)
-        guard try windows(of: app).contains(where: { CFEqual($0, captured.element) }) else { throw NativeSplitError.windowMissing }
+        let listed = try windows(of: app).contains(where: { CFEqual($0, captured.element) })
+        let focused = NativeAX.element(app, kAXFocusedWindowAttribute).map { CFEqual($0, captured.element) } == true
+        guard listed || (captured.windowID != nil && focused) else { throw NativeSplitError.windowMissing }
         return captured
     }
 

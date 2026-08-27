@@ -13,6 +13,7 @@ struct WorkspacePanelView: View {
                 Spacer()
                 Button(action: settings) { Image(systemName: "slider.horizontal.3") }.help(L10n.text("control.title"))
                     .accessibilityLabel(L10n.text("control.title"))
+                QuitApplicationButton(iconOnly: true)
                 Button(action: close) { Image(systemName: "xmark") }.help(L10n.text("panel.close"))
                     .accessibilityLabel(L10n.text("panel.close"))
             }

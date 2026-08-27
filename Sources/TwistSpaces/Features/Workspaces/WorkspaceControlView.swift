@@ -13,6 +13,7 @@ struct WorkspaceControlView: View {
                 Text(L10n.text("control.title")).font(.title2.bold())
                 Spacer()
                 Button(L10n.text("control.showPanel"), action: showPanel)
+                QuitApplicationButton()
             }
             TabView(selection: $tab) {
                 VStack(alignment: .leading, spacing: 12) {

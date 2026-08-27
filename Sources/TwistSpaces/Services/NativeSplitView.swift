@@ -9,8 +9,8 @@ extension NewWindowService {
         guard !splitInProgress, (10...90).contains(percentage) else { throw NativeSplitError.cancelled }
         splitInProgress = true
         defer { splitInProgress = false }
-        let first = try await validatedWindow(left)
-        let second = try await validatedWindow(right)
+        let first = try await identifiedWindow(left)
+        let second = try await identifiedWindow(right)
         guard !CFEqual(first.element, second.element) else { throw NativeSplitError.ambiguousWindow }
         let leftID = try windowID(first)
         let rightID = try windowID(second)
@@ -180,6 +180,32 @@ extension NewWindowService {
     }
 
     #if DEBUG
+    func traceMatchedPair(_ left: CapturedWindow, _ right: CapturedWindow) {
+        let leftID = try? windowID(left)
+        let rightID = try? windowID(right)
+        traceMatchedWindow(left, id: leftID)
+        traceMatchedWindow(right, id: rightID)
+        if let leftID, let rightID {
+            let percentage = confirmedPair(left, right, leftID: leftID, rightID: rightID)?.percentage
+            Logger(subsystem: "local.twist-spaces", category: "NativeSplit").notice("Matched pair verified=\(percentage != nil) actual=\(percentage ?? -1)")
+        }
+    }
+
+    // Inspect the existing matched windows without changing their layout or asking for screen capture.
+    private func traceMatchedWindow(_ window: CapturedWindow, id: CGWindowID?) {
+        var raw: CFTypeRef?
+        let error = AXUIElementCopyAttributeValue(window.element, "AXFullScreen" as CFString, &raw)
+        let fullscreen = (raw as? NSNumber)?.stringValue ?? "unknown"
+        let frame = String(describing: NativeAX.frame(window.element))
+        let entries = windowEntries(onScreen: false).filter {
+            ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == window.application.pid
+                && ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value == id
+        }.map {
+            "id=\($0[kCGWindowNumber as String] ?? "nil") visible=\($0[kCGWindowIsOnscreen as String] ?? "nil") layer=\($0[kCGWindowLayer as String] ?? "nil") bounds=\(String(describing: bounds(of: $0)))"
+        }.joined(separator: "; ")
+        Logger(subsystem: "local.twist-spaces", category: "NativeSplit").notice("Matched pid=\(window.application.pid) fullscreen=\(fullscreen, privacy: .public) axError=\(error.rawValue) axFrame=\(frame, privacy: .public); \(entries, privacy: .public)")
+    }
+
     // Numeric window metadata only: record each gate independently without changing picker behavior.
     // Read with: log show --last 10m --predicate 'subsystem == "local.twist-spaces" AND category == "NativeSplit"'
     private func tracePartnerSelection(_ entries: [[String: Any]], leftID: CGWindowID, rightID: CGWindowID,
@@ -234,24 +260,57 @@ extension NewWindowService {
         return nil
     }
 
-    private func windowID(_ window: CapturedWindow) throws -> CGWindowID {
+    func windowServerIDs(for pid: pid_t) -> Set<CGWindowID> {
+        Set(windowEntries(onScreen: false).compactMap {
+            guard ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == pid else { return nil }
+            return ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value
+        })
+    }
+
+    private func identifiedWindow(_ token: NativeWindowToken) async throws -> CapturedWindow {
+        for attempt in 0..<20 {
+            try Task.checkCancellation()
+            let window = try await validatedWindow(token)
+            do {
+                let identified = CapturedWindow(application: window.application, element: window.element,
+                                                windowID: try windowID(window), existingWindowIDs: window.existingWindowIDs)
+                capturedWindows[token] = identified
+                return identified
+            } catch {
+                guard window.windowID == nil, attempt < 19 else { throw error }
+                try await Task.sleep(for: .milliseconds(100))
+            }
+        }
+        throw NativeSplitError.ambiguousWindow
+    }
+
+    func windowID(_ window: CapturedWindow, excluding: Set<CGWindowID> = []) throws -> CGWindowID {
+        let excluding = window.existingWindowIDs ?? excluding
         let entries = windowEntries(onScreen: false).filter { ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == window.application.pid }
+        if let id = window.windowID {
+            // Identity was bound while creating this exact AX window, before another app took focus.
+            // A missing ID is stale, not permission to select a different same-sized window.
+            guard entries.contains(where: { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value == id }) else {
+                throw NativeSplitError.windowMissing
+            }
+            return id
+        }
         if let number = NativeAX.value(window.element, "AXWindowNumber") as? NSNumber,
            entries.contains(where: { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value == number.uint32Value }) {
             return number.uint32Value
         }
         guard let frame = NativeAX.frame(window.element) else { throw NativeSplitError.windowMissing }
-        let matches = entries.filter {
-            guard ($0[kCGWindowLayer as String] as? NSNumber)?.intValue == 0,
-                  let bounds = $0[kCGWindowBounds as String] as? NSDictionary,
-                  let candidate = CGRect(dictionaryRepresentation: bounds) else { return false }
-            return abs(candidate.minX - frame.minX) <= 1 && abs(candidate.minY - frame.minY) <= 1
-                && abs(candidate.width - frame.width) <= 1 && abs(candidate.height - frame.height) <= 1
+        let matches = NativeWindowIdentity.matchingIDs(in: entries, pid: window.application.pid, frame: frame, excluding: excluding)
+        #if DEBUG
+        if !excluding.isEmpty || matches.count != 1 {
+            let all = NativeWindowIdentity.matchingIDs(in: entries, pid: window.application.pid, frame: frame)
+            Logger(subsystem: "local.twist-spaces", category: "WindowOpening").notice("WindowID pid=\(window.application.pid) allMatches=\(all.count) newMatches=\(matches.count) excluded=\(excluding.count)")
         }
-        guard matches.count == 1, let id = matches[0][kCGWindowNumber as String] as? NSNumber else {
+        #endif
+        guard matches.count == 1 else {
             throw NativeSplitError.ambiguousWindow
         }
-        return id.uint32Value
+        return matches[0]
     }
 
     private func windowEntries(onScreen: Bool) -> [[String: Any]] {

@@ -40,6 +40,26 @@ import Testing
     #expect(NativeSplitGeometry.percentage(left: left, right: right.offsetBy(dx: -30, dy: 0), display: display) == nil)
 }
 
+@Test func nativePairAllowsSeparateFullscreenToolbar() {
+    // Observed 2026-08-28 02:33:47: both AXFullScreen=1, original CG IDs both visible.
+    // The right app's toolbar is a separate CG window at y=0; its main window starts at y=40.
+    let display = CGRect(x: 0, y: 0, width: 1440, height: 900)
+    let left = CGRect(x: 0, y: 0, width: 718, height: 900)
+    let right = CGRect(x: 730, y: 40, width: 710, height: 860)
+    #expect(NativeSplitGeometry.percentage(left: left, right: right, display: display) == 50)
+    #expect(NativeSplitGeometry.percentage(left: CGRect(x: 0, y: 40, width: 718, height: 860),
+                                         right: CGRect(x: 730, y: 0, width: 710, height: 900), display: display) == 50)
+    let offset = CGVector(dx: -1440, dy: 200)
+    #expect(NativeSplitGeometry.percentage(left: left.offsetBy(dx: offset.dx, dy: offset.dy),
+                                         right: right.offsetBy(dx: offset.dx, dy: offset.dy),
+                                         display: display.offsetBy(dx: offset.dx, dy: offset.dy)) == 50)
+    #expect(NativeSplitGeometry.percentage(left: left,
+                                         right: CGRect(x: 730, y: 100, width: 710, height: 800), display: display) == nil)
+    #expect(NativeSplitGeometry.percentage(left: CGRect(x: 0, y: 0, width: 718, height: 850),
+                                         right: CGRect(x: 730, y: 0, width: 710, height: 850), display: display) == nil)
+    #expect(NativeSplitGeometry.percentage(left: display, right: display, display: display) == nil)
+}
+
 @Test @MainActor func productionOpeningPassesRatioAndDoesNotFallBackToLaunchOnly() async {
     let first = SavedApplication(name: "Left", bundleIdentifier: "test.left", bundlePath: "/Applications/Left.app")
     let second = SavedApplication(name: "Right", bundleIdentifier: "test.right", bundlePath: "/Applications/Right.app")
