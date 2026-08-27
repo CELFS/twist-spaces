@@ -5,6 +5,7 @@ enum WorkspaceOpenAction { case activate, newWindows }
 enum WorkspaceLaunchResult: Equatable {
     case opened
     case startedOrCreated
+    case splitApplied(Int)
     case failed(String)
     case blocked
 
@@ -12,6 +13,7 @@ enum WorkspaceLaunchResult: Equatable {
         switch self {
         case .opened: L10n.text("launch.opened")
         case .startedOrCreated: L10n.text("launch.newCompleted")
+        case .splitApplied(let percentage): String(format: L10n.text("split.completed"), percentage, 100 - percentage)
         case .failed(let message): message
         case .blocked: L10n.text("launch.blocked")
         }
@@ -19,7 +21,7 @@ enum WorkspaceLaunchResult: Equatable {
 
     var succeeded: Bool {
         switch self {
-        case .opened, .startedOrCreated: true
+        case .opened, .startedOrCreated, .splitApplied: true
         case .failed, .blocked: false
         }
     }
@@ -27,18 +29,22 @@ enum WorkspaceLaunchResult: Equatable {
 
 @MainActor
 final class WorkspaceLauncher {
+    static var system: WorkspaceLauncher { WorkspaceLauncher(openWorkspace: NativeWorkspaceOpening.open) }
     private let resolve: @MainActor (SavedApplication) throws -> URL
     private let launch: @MainActor (URL) async throws -> Void
     private let createWindow: @MainActor (URL) async throws -> Void
+    private let openWorkspace: (@MainActor (Workspace, [String: URL], WorkspaceOpenAction) async throws -> Int)?
 
     init(
         resolve: @escaping @MainActor (SavedApplication) throws -> URL = WorkspaceLauncher.applicationURL,
         launch: @escaping @MainActor (URL) async throws -> Void = WorkspaceLauncher.openApplication,
-        createWindow: @escaping @MainActor (URL) async throws -> Void = { try await NewWindowOperation().open($0) }
+        createWindow: @escaping @MainActor (URL) async throws -> Void = { try await NewWindowOperation().open($0) },
+        openWorkspace: (@MainActor (Workspace, [String: URL], WorkspaceOpenAction) async throws -> Int)? = nil
     ) {
         self.resolve = resolve
         self.launch = launch
         self.createWindow = createWindow
+        self.openWorkspace = openWorkspace
     }
 
     static func applicationURL(_ application: SavedApplication) throws -> URL {
@@ -76,6 +82,15 @@ final class WorkspaceLauncher {
                 let messages = workspace.applications.compactMap { errors[$0.id] }
                 return (workspace.id, messages.isEmpty ? .blocked : .failed(messages.joined(separator: "\n")))
             })
+        }
+        if let openWorkspace {
+            var results: [Int: WorkspaceLaunchResult] = [:]
+            // The production path only succeeds after the exact pair and requested ratio are verified.
+            for workspace in workspaces {
+                do { results[workspace.id] = .splitApplied(try await openWorkspace(workspace, resolved, action)) }
+                catch { results[workspace.id] = .failed(error.localizedDescription) }
+            }
+            return results
         }
         if action == .newWindows {
             var results: [Int: WorkspaceLaunchResult] = [:]

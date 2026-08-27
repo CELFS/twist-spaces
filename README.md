@@ -6,14 +6,14 @@ An extensible, personal macOS workspace manager built with Swift 6.1, SwiftUI, a
 
 ## Current scope
 
-The app has two separate interfaces: a Control Center for editing and settings, and a translucent desktop display panel for selecting and opening combinations. Native Split View is not yet implemented.
+The app has two separate interfaces: a Control Center for editing and settings, and a translucent desktop display panel for selecting and opening combinations. The opening pipeline now includes guarded native Split View automation; end-to-end pairing on this Mac is not yet verified.
 
 - A native Swift Package executable and a script that builds a local `.app` bundle.
 - A regular Dock app opens the Control Center. Left-clicking the menu bar icon toggles the display panel; right-clicking opens its menu. Diagnostics lives under **Developer** in debug builds only.
 - Real combination creation and editing: a name, two applications, and an optional project-folder note. Choose installed or running applications, or browse for an app elsewhere; window or thread discovery is not required. No sample combinations are inserted.
 - Atomic local persistence at `~/Library/Application Support/Twist Spaces/workspaces.json`. Corrupt or unsupported files block saving instead of being overwritten.
-- Separate **Start or activate** and **New windows** icon buttons, with both batch actions. Activation deduplicates shared apps; new-window requests run for each side of each selected group. A stopped app starts once; a running app receives one supported native New Window command. Missing apps block the batch, and unsupported commands fail visibly without substituting activation or extra app processes.
-- The card's left content area toggles selection without launching; action buttons have 36 pt hit targets, application icons are 32 pt, and cards preview the saved left/right percentages. Edit the split ratio from 10:90 to 90:10; older combinations default to 50:50. The ratio is stored, not applied to native Split View yet.
+- Separate **Start or activate** and **New windows** icon buttons, with both batch actions. Each group captures the activated or newly created windows before native pairing. A stopped app starts once; a running app receives one supported native New Window command. Missing apps block the batch, and unsupported commands fail visibly without substituting activation or extra app processes.
+- The card's left content area toggles selection without launching; action buttons have 36 pt hit targets, application icons are 32 pt, and cards preview the saved left/right percentages. Edit the split ratio from 10:90 to 90:10; older combinations default to 50:50. After confirming a native pair, the opening pipeline drags its divider and checks the actual ratio. An unattainable ratio reports the measured result, not success.
 - Configurable left/right edge, width, opt-in edge activation and Control–Option–Space. The display panel defaults to 460 pt wide with a 12 pt screen inset. Its native HUD material blurs behind the window at full alpha, rather than exposing sharp desktop content through a faded overlay. It opens on the pointer's display and collapses when it loses focus.
 - All dropdowns share a native picker component with consistent label alignment and bounded control widths. Display and language settings share the same page layout; sliders expand with the window. The interim 340 pt default migrates once to 460 pt; other custom widths and trigger settings are retained.
 - A custom application icon for Finder and macOS application listings; the menu bar symbol remains unchanged.
@@ -22,9 +22,9 @@ The app has two separate interfaces: a Control Center for editing and settings, 
 - A copy button at the upper-right of the report area that copies the complete diagnostic text, regardless of scrolling or text selection, and confirms a successful copy.
 - English and Simplified Chinese UI, selectable in the Control Center with a follow-system option. Text uses native `Localizable.strings` keys. Comments and scripts use English; this README defaults to English.
 
-The app does not automatically request permissions, open specific project windows, move/resize or close other applications' windows, access application databases, call private Spaces APIs, or substitute ordinary desktop tiling for native Split View.
+The app does not automatically request permissions, open specific project windows, close other applications' windows, access application databases, call private Spaces APIs, or substitute ordinary desktop tiling for native Split View. Opening a combination uses the system fullscreen tiling menu and adjusts the native divider using existing Accessibility permission.
 
-Diagnostics remains a separate development tool. Existing saved window metadata is preserved when its application is unchanged; the current opening action uses applications, not window bindings. Native Split View remains the saved target layout, but automatic pairing and project reopening are not implemented.
+Diagnostics remains a separate development tool. Existing saved window metadata is preserved when its application is unchanged; opening uses applications, not saved window bindings. Project reopening is not implemented. Pairing must identify the exact second window in the system picker and confirm both windows are fullscreen, visible, and adjacent on one display. Ambiguous targets fail instead of selecting a substitute; windows in another fullscreen workspace are not dismantled.
 
 ## Build and launch
 
@@ -48,9 +48,9 @@ The fixed signing identity is already configured on this Mac. Do not rerun signi
 
 Application choices merge standard application directories (`/Applications`, `~/Applications`, `/System/Applications`, and `/System/Library/CoreServices/Applications`), running applications, and saved selections. Nested application helpers and background-only bundles are excluded; apps elsewhere can be selected with Browse. The list shows bundle-declared alternate names as well as the display name: this Mac's `ChatGPT.app` declares `Codex` as an alternate name. Selection and deduplication use bundle ID plus path, not the displayed name. Window titles and conversation threads are not used for saving or launching. Opening applications is not proof that the intended project windows are open or paired.
 
-New windows in running apps require existing Accessibility permission. The app looks for an enabled, unambiguous top-level New Window command in English or Chinese, not a generic Cmd-N shortcut. It presses once and checks for a new standard AX window; timeouts are not retried automatically. If creation cannot be confirmed, inspect the target app before retrying. No project-folder route, conversation creation, ordinary window tiling, or native Split View is implied. Cursor's actual New Window menu was observed; automated operation of the Codex host is restricted in this environment, so its end-to-end creation remains unverified.
+New windows in running apps require existing Accessibility permission. The app looks for an enabled, unambiguous top-level New Window command in English or Chinese, not a generic Cmd-N shortcut. It presses once and checks for a new standard AX window; timeouts are not retried automatically. If creation cannot be confirmed, inspect the target app before retrying. Window creation alone does not imply native Split View; pairing and ratio confirmation are separate steps.
 
-A rejected foreground activation request is not treated as an exited application. The new-window path rechecks process identity and still sends the validated menu command once; success continues to require observing a new window. User testing of the preceding build opened only a normal Cursor window and reported an unavailable Codex application. The activation guard is corrected, but this exact real-app combination still needs retesting; native Split View remains unimplemented.
+A rejected foreground activation request is not treated as an exited application. The new-window path rechecks process identity and still sends the validated menu command once. The user subsequently confirmed both Cursor and Codex windows open. Native picker selection and divider adjustment have not been verified end to end on this Mac; system menu or picker incompatibility is reported on the combination.
 
 In the Control Center's display settings, edge and shortcut activation are off until enabled. Edge activation uses 2 pt on the selected side of the pointer's display, excluding the menu bar and Dock areas, with a configurable delay. Settings apply immediately. The display panel collapses on loss of focus; moving the pointer alone does not dismiss it.
 
@@ -97,7 +97,7 @@ Get a process ID from the application list, then replace `12345` below with that
 
 The CLI never displays a permission prompt. Exit codes: `0` means completed, `1` indicates an application or inspection error, `2` means Accessibility permission is required, and `64` indicates invalid arguments. A completed inspection does not mean every optional attribute is available; check each attribute's `errorCode` as well.
 
-In the diagnostics GUI, select an application. If access is missing, click **Request accessibility access…**, authorize Twist Spaces in System Settings, return to the app, click **Refresh**, and then choose **Inspect windows**. Permission attribution can depend on the launching process, so prefer inspection from the `.app` GUI. Diagnostics does not automatically refresh or save reports to disk, or send them over the network. Combination editing and application launching do not scan windows.
+In the diagnostics GUI, select an application. If access is missing, click **Request accessibility access…**, authorize Twist Spaces in System Settings, return to the app, click **Refresh**, and then choose **Inspect windows**. Permission attribution can depend on the launching process, so prefer inspection from the `.app` GUI. Diagnostics does not automatically refresh or save reports to disk, or send them over the network. Combination editing does not scan windows; native pairing does.
 
 Diagnostic JSON includes window titles and potentially local project paths. Review it before sharing. Process IDs and window ordinals only identify the current process or report; they are not persistent project identities. Some applications do not expose `AXDocument` or `AXIdentifier`. Failed reads preserve AX error codes, and the tool does not guess project pairings from window titles.
 
@@ -167,8 +167,8 @@ Historical initialization checks (before the workspace implementation) on 2026-0
 ## Remaining implementation and verification
 
 1. Inspect real Cursor and Codex windows and determine whether different projects can be identified reliably.
-2. Decide whether to reuse existing windows or open new ones, then verify how to open the intended project window.
-3. Verify whether public Accessibility operations can pair the selected windows in native fullscreen Split View. This is neither implemented nor verified yet.
+2. Verify the separate activation and new-window paths for intended project windows; project reopening is not implemented.
+3. Exercise native fullscreen picker selection and divider adjustment end to end. The code is integrated, but the real interaction remains unverified.
 4. Verify edge activation, shortcut, and multiple-display behavior. The agreed dismissal rule is collapse on loss of focus.
 5. Application-combination persistence, editing, and launching are implemented. Specific project opening and native Split View remain incomplete; application launch is not completion of those requirements.
 

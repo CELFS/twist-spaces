@@ -22,8 +22,20 @@ enum NewWindowCommand {
 actor NewWindowService {
     static let shared = NewWindowService()
     private let inspector = WindowInspector()
+    struct CapturedWindow {
+        let application: ApplicationSnapshot
+        let element: AXUIElement
+    }
+    var capturedWindows: [NativeWindowToken: CapturedWindow] = [:]
+    private var nextWindowToken = 1
+    var splitInProgress = false
 
     func createWindow(in application: ApplicationSnapshot) async throws {
+        let token = try await createWindowToken(in: application)
+        release([token])
+    }
+
+    func createWindowToken(in application: ApplicationSnapshot) async throws -> NativeWindowToken {
         guard AccessibilityPermission.isTrusted else { throw NewWindowError.permissionRequired }
         guard await isCurrent(application) else { throw NewWindowError.unavailable }
         // Reuse the existing bounded Cursor compatibility recovery, without another permission prompt.
@@ -44,19 +56,55 @@ actor NewWindowService {
         for _ in 0..<20 {
             try await Task.sleep(for: .milliseconds(250))
             guard await isCurrent(application) else { throw NewWindowError.unavailable }
-            if let current = try? windows(of: app), current.contains(where: { candidate in
-                !before.contains(where: { CFEqual($0, candidate) })
-            }) { return }
+            if let current = try? windows(of: app) {
+                let created = current.filter { candidate in !before.contains(where: { CFEqual($0, candidate) }) }
+                guard created.count <= 1 else { throw NativeSplitError.ambiguousWindow }
+                if let window = created.first { return capture(window, application: application) }
+            }
         }
         throw NewWindowError.unconfirmed
     }
 
-    private func isCurrent(_ application: ApplicationSnapshot) async -> Bool {
+    func isCurrent(_ application: ApplicationSnapshot) async -> Bool {
         await MainActor.run {
             guard let running = NSRunningApplication(processIdentifier: application.pid) else { return false }
             return !running.isTerminated && running.bundleIdentifier == application.bundleIdentifier
                 && running.bundleURL?.path == application.bundlePath
         }
+    }
+
+    private func capture(_ window: AXUIElement, application: ApplicationSnapshot) -> NativeWindowToken {
+        let token = NativeWindowToken(value: nextWindowToken)
+        nextWindowToken += 1
+        capturedWindows[token] = CapturedWindow(application: application, element: window)
+        return token
+    }
+
+    func captureFocusedWindow(in application: ApplicationSnapshot, requireSingle: Bool) async throws -> NativeWindowToken {
+        guard AccessibilityPermission.isTrusted else { throw NewWindowError.permissionRequired }
+        _ = await inspector.inspect(application)
+        let app = AXUIElementCreateApplication(application.pid)
+        _ = AXUIElementSetMessagingTimeout(app, 0.5)
+        for _ in 0..<20 {
+            guard await isCurrent(application) else { throw NativeSplitError.windowMissing }
+            let current = try windows(of: app)
+            if requireSingle, current.count > 1 { throw NativeSplitError.ambiguousWindow }
+            if !requireSingle, let focused = NativeAX.element(app, kAXFocusedWindowAttribute),
+               current.contains(where: { CFEqual($0, focused) }) { return capture(focused, application: application) }
+            if current.count == 1 { return capture(current[0], application: application) }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        throw NativeSplitError.ambiguousWindow
+    }
+
+    func release(_ tokens: [NativeWindowToken]) { for token in tokens { capturedWindows[token] = nil } }
+
+    func validatedWindow(_ token: NativeWindowToken) async throws -> CapturedWindow {
+        guard let captured = capturedWindows[token], await isCurrent(captured.application) else { throw NativeSplitError.windowMissing }
+        let app = AXUIElementCreateApplication(captured.application.pid)
+        _ = AXUIElementSetMessagingTimeout(app, 0.5)
+        guard try windows(of: app).contains(where: { CFEqual($0, captured.element) }) else { throw NativeSplitError.windowMissing }
+        return captured
     }
 
     private func windows(of app: AXUIElement) throws -> [AXUIElement] {

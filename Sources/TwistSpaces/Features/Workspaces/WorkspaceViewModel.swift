@@ -17,7 +17,7 @@ final class WorkspaceViewModel: ObservableObject {
     private let launcher: WorkspaceLauncher
     private let catalog: @MainActor () -> [SavedApplication]
 
-    init(store: WorkspaceStore = .standard, launcher: WorkspaceLauncher = WorkspaceLauncher(),
+    init(store: WorkspaceStore = .standard, launcher: WorkspaceLauncher = .system,
          catalog: @escaping @MainActor () -> [SavedApplication] = ApplicationCatalog.selectableApplications) {
         self.store = store
         self.launcher = launcher
