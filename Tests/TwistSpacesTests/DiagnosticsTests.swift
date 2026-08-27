@@ -49,6 +49,9 @@ import Testing
 @Test func englishResourcesAreAvailable() {
     #expect(L10n.text("app.name") == "Twist Spaces")
     #expect(L10n.text("cli.help").contains("--inspect PID"))
+    #expect(L10n.text("diagnostics.copy") == "Copy complete diagnostic report")
+    #expect(L10n.text("diagnostics.copied") == "Copied")
+    #expect(L10n.text("diagnostics.copyFailed") == "Copy failed. Please try again.")
 }
 
 @Test func missingLocalizationKeysRemainVisible() {

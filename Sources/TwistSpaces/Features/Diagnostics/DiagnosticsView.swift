@@ -45,14 +45,7 @@ struct DiagnosticsView: View {
                 }
             }
 
-            ScrollView([.vertical, .horizontal]) {
-                Text(verbatim: model.report.isEmpty ? L10n.text("diagnostics.empty") : model.report)
-                    .font(.system(.body, design: .monospaced))
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                    .padding(12)
-            }
-            .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 8))
+            DiagnosticReportView(report: model.report, isInspecting: model.isInspecting)
 
             Text(L10n.text("diagnostics.boundary"))
                 .font(.footnote)

@@ -15,3 +15,6 @@
 "permission.required" = "Accessibility access required to read windows";
 "permission.request" = "Request accessibility access…";
 "cli.help" = "Twist Spaces\n\nUsage:\n  TwistSpaces                 Start the menu bar app\n  TwistSpaces --list-apps     List running GUI applications as JSON\n  TwistSpaces --inspect PID   Read one application's windows as JSON\n  TwistSpaces --help          Show this help\n\nInspection never requests permission automatically or changes windows.\nExit codes: 0 = completed, 1 = error, 2 = accessibility permission required, 64 = invalid arguments.";
+"diagnostics.copy" = "Copy complete diagnostic report";
+"diagnostics.copied" = "Copied";
+"diagnostics.copyFailed" = "Copy failed. Please try again.";
