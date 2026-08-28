@@ -2,13 +2,19 @@ import AppKit
 import SwiftUI
 
 struct QuitApplicationButton: View {
+    var showsIcon = false
     @State private var hovered = false
 
     var body: some View {
         Button {
             NSApplication.shared.terminate(nil)
         } label: {
-            Text(L10n.text("action.quit"))
+            if showsIcon {
+                Label(L10n.text("action.quit"), systemImage: "power")
+                    .labelStyle(.titleAndIcon)
+            } else {
+                Text(L10n.text("action.quit"))
+            }
         }
         .buttonStyle(QuitButtonStyle(hovered: hovered))
         .onContinuousHover { phase in

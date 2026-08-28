@@ -26,7 +26,7 @@ struct WorkspaceControlView: View {
                     Spacer()
                     RestartApplicationButton()
                         .padding(.trailing, 8)
-                    QuitApplicationButton()
+                    QuitApplicationButton(showsIcon: true)
                 }
                 .padding(.top, 4)
             }

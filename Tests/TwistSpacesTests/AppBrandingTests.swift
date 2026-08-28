@@ -85,6 +85,10 @@ import Testing
         try check(WorkspaceControlNavigationButton(titleKey: "control.layoutPanel", symbol: "sidebar.right",
                                                    isSelected: false, showsArrow: true, action: {})
             .environment(\.colorScheme, scheme), width: 160, height: 34, name: "panel-shortcut-\(scheme)")
+        try check(HStack(spacing: 16) {
+            RestartApplicationButton()
+            QuitApplicationButton(showsIcon: true)
+        }.environment(\.colorScheme, scheme), width: 220, height: 34, name: "control-footer-\(scheme)")
     }
     try check(HStack(spacing: 24) {
         AppLogoView(size: 64)

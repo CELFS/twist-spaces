@@ -9,7 +9,8 @@ struct RestartApplicationButton: View {
         Button {
             restarter.restart(nil)
         } label: {
-            Text(L10n.text("action.restart"))
+            Label(L10n.text("action.restart"), systemImage: "arrow.clockwise")
+                .labelStyle(.titleAndIcon)
         }
         .buttonStyle(QuitButtonStyle(hovered: hovered))
         .disabled(restarter.isRestarting)

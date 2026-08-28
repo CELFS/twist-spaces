@@ -4,7 +4,7 @@ struct QuitButtonStyle: ButtonStyle {
     let hovered: Bool
 
     func makeBody(configuration: Configuration) -> some View {
-        // Keep the text-only appearance while making hover and mouse-down visible.
+        // Keep the lightweight appearance while making hover and mouse-down visible.
         configuration.label
             .foregroundStyle(hovered ? Color.primary : Color.secondary)
             .underline(hovered)
