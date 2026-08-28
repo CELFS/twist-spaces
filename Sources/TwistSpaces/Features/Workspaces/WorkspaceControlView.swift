@@ -11,7 +11,6 @@ struct WorkspaceControlView: View {
     var body: some View {
         VStack(spacing: 16) {
             HStack {
-                AppLogoView()
                 Text(L10n.text("control.title")).font(.title2.bold())
                 Spacer()
                 Button(L10n.text("control.showPanel"), action: showPanel)
