@@ -55,7 +55,7 @@ struct QuickLaunchManagementView: View {
                 .disabled(!model.canSave || model.isBusy)
             }
         }
-        .padding(16)
+        .padding(.vertical, 16)
         .onAppear { model.refreshApplications() }
     }
 }

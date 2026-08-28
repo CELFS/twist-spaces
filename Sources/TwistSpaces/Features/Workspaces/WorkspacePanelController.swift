@@ -87,6 +87,7 @@ final class WorkspacePanelController: NSWindowController, NSWindowDelegate {
 
     func windowDidResignKey(_ notification: Notification) {
         // Only the display panel collapses. Editing remains in the independent control window.
+        guard !settings.isPinned else { return }
         collapse()
     }
 

@@ -38,7 +38,7 @@ struct WorkspaceControlView: View {
                     }
                     Text(L10n.text("control.layoutStatus")).font(.caption).foregroundStyle(.secondary)
                 }
-                .padding(16)
+                .padding(.vertical, 16)
                 .tabItem { Text(L10n.text("control.combinations")) }.tag(WorkspaceControlTab.combinations)
 
                 QuickLaunchManagementView(model: model, settings: settings)

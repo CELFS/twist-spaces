@@ -12,6 +12,13 @@ struct WorkspacePanelView: View {
             HStack {
                 Text(L10n.text("workspace.title")).font(.headline)
                 Spacer()
+                Button { panelSettings.isPinned.toggle() } label: {
+                    Image(systemName: panelSettings.isPinned ? "pin.fill" : "pin")
+                        .foregroundStyle(panelSettings.isPinned ? Color.accentColor : Color.primary)
+                }
+                .help(L10n.text(panelSettings.isPinned ? "panel.unpin" : "panel.pin"))
+                .accessibilityLabel(L10n.text(panelSettings.isPinned ? "panel.unpin" : "panel.pin"))
+                .accessibilityAddTraits(panelSettings.isPinned ? .isSelected : [])
                 Button(action: settings) { Image(systemName: "slider.horizontal.3") }.help(L10n.text("control.title"))
                     .accessibilityLabel(L10n.text("control.title"))
                 QuitApplicationButton(iconOnly: true)

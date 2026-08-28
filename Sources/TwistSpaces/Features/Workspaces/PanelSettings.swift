@@ -4,6 +4,8 @@ import SwiftUI
 
 @MainActor
 final class PanelSettings: ObservableObject {
+    // Pinning survives manual collapse, but is not persisted between app launches.
+    @Published var isPinned = false
     @Published var leftSide: Bool { didSet { defaults.set(leftSide, forKey: "panel.leftSide") } }
     @Published var width: Double { didSet { defaults.set(width, forKey: "panel.displayWidth") } }
     @Published var edgeEnabled: Bool { didSet { defaults.set(edgeEnabled, forKey: "panel.edgeEnabled") } }

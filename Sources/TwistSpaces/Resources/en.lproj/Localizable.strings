@@ -166,3 +166,6 @@
 "about.title" = "About";
 "about.version" = "Version";
 "about.copyright" = "© 2026 CELFS";
+"panel.pin" = "Pin panel";
+"panel.unpin" = "Unpin panel";
+"workspace.ratioDragHint" = "Drag the divider to adjust the split, or focus the preview and use the left and right arrow keys.";

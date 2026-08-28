@@ -24,7 +24,8 @@ struct WorkspaceCardView: View {
                             }
                         }
                         ApplicationPairView(workspace: workspace)
-                        SplitRatioPreview(leftPercentage: workspace.leftPercentage)
+                        SplitRatioPreview(leftPercentage: workspace.leftPercentage,
+                                          leftApplication: workspace.left.application, rightApplication: workspace.right.application)
                         if let result = model.results[workspace.id], !result.succeeded || result.hasMatchedWindows {
                             Text(verbatim: result.message).font(.caption)
                                 .foregroundStyle(result.succeeded ? Color.secondary : .orange)

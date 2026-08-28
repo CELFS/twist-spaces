@@ -44,6 +44,7 @@ private let assistantApp = SavedApplication(name: "Assistant", bundleIdentifier:
     draft.name = "开发组合"
     draft.leftApplication = editorApp
     draft.rightApplication = assistantApp
+    draft.leftPercentage = SplitRatioInteraction.draggedPercentage(start: 50, translation: 60, width: 412)
     #expect(draft.canSave)
     model.saveDraft(draft)
     #expect(model.draft == nil)
@@ -51,6 +52,7 @@ private let assistantApp = SavedApplication(name: "Assistant", bundleIdentifier:
     let saved = try #require(model.library.workspaces.first)
     #expect(saved.projectPath.isEmpty)
     #expect(saved.applications == [editorApp, assistantApp])
+    #expect(saved.leftPercentage == 65)
     #expect(saved.left.document == nil)
     #expect(try store.load().workspaces == [saved])
     model.edit(saved)
@@ -59,6 +61,11 @@ private let assistantApp = SavedApplication(name: "Assistant", bundleIdentifier:
     model.saveDraft(edited)
     #expect(try store.load().workspaces.first?.name == "Updated")
     #expect(model.library.nextID == 2)
+    model.edit(try #require(model.library.workspaces.first))
+    let cancelled = try #require(model.draft)
+    cancelled.leftPercentage = SplitRatioInteraction.draggedPercentage(start: 65, translation: -100, width: 412)
+    model.dismissEditor()
+    #expect(try store.load().workspaces.first?.leftPercentage == 65)
 }
 
 @Test @MainActor func savingFailureKeepsDraftAndExistingInMemoryLibrary() throws {

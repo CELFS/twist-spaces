@@ -9,7 +9,8 @@ struct WorkspaceManagementRow: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text(verbatim: workspace.name).font(.headline)
                 ApplicationPairView(workspace: workspace)
-                SplitRatioPreview(leftPercentage: workspace.leftPercentage)
+                SplitRatioPreview(leftPercentage: workspace.leftPercentage,
+                                  leftApplication: workspace.left.application, rightApplication: workspace.right.application)
                 if let result = model.results[workspace.id] {
                     Text(verbatim: result.message).font(.caption)
                         .foregroundStyle(result.succeeded ? Color.secondary : .orange)

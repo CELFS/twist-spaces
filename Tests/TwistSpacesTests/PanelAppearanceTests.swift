@@ -3,6 +3,111 @@ import SwiftUI
 import Testing
 @testable import TwistSpaces
 
+@MainActor private final class PanelCloseRecorder: NSWindow {
+    var collapseCount = 0
+    override var isVisible: Bool { true }
+    override func orderOut(_ sender: Any?) { collapseCount += 1 }
+}
+
+@Test @MainActor func pinnedPanelOnlySuppressesAutomaticCollapse() throws {
+    let suite = "local.twist-spaces.tests.\(ProcessInfo.processInfo.globallyUniqueString)"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        .appendingPathComponent(".build/panel-pin-\(ProcessInfo.processInfo.globallyUniqueString)")
+    let settings = PanelSettings(defaults: defaults)
+    let model = WorkspaceViewModel(store: WorkspaceStore(url: directory.appendingPathComponent("workspaces.json")), catalog: { [] })
+    let controller = WorkspacePanelController(model: model, settings: settings)
+    defer { controller.stop() }
+    let window = PanelCloseRecorder(contentRect: .zero, styleMask: .borderless, backing: .buffered, defer: false)
+    controller.window = window
+    let notification = Notification(name: NSWindow.didResignKeyNotification, object: window)
+    controller.windowDidResignKey(notification)
+    #expect(window.collapseCount == 1)
+    settings.isPinned = true
+    controller.windowDidResignKey(notification)
+    #expect(window.collapseCount == 1)
+    controller.collapse()
+    controller.toggle()
+    #expect(window.collapseCount == 3)
+    #expect(settings.isPinned)
+    settings.isPinned = false
+    controller.windowDidResignKey(notification)
+    #expect(window.collapseCount == 4)
+    settings.isPinned = true
+    #expect(!PanelSettings(defaults: defaults).isPinned)
+}
+
+@Test func screenRatioDraggingUsesTheScreenInteriorAndFivePercentSteps() {
+    #expect(SplitRatioInteraction.dividerPosition(percentage: 50, width: 412) == 206)
+    #expect(SplitRatioInteraction.draggedPercentage(start: 50, translation: 0, width: 412) == 50)
+    #expect(SplitRatioInteraction.draggedPercentage(start: 50, translation: 9, width: 412) == 50)
+    #expect(SplitRatioInteraction.draggedPercentage(start: 50, translation: 11, width: 412) == 55)
+    #expect(SplitRatioInteraction.draggedPercentage(start: 50, translation: -60, width: 412) == 35)
+    #expect(SplitRatioInteraction.draggedPercentage(start: 50, translation: -1000, width: 412) == 10)
+    #expect(SplitRatioInteraction.draggedPercentage(start: 50, translation: 1000, width: 412) == 90)
+    #expect(SplitRatioInteraction.draggedPercentage(start: 50, translation: 1000, width: 0) == 50)
+}
+
+@Test @MainActor func splitScreenPreviewAndEditorFitTheirAvailableWidths() throws {
+    let left = SavedApplication(name: "Safari", bundleIdentifier: "com.apple.Safari", bundlePath: "/Applications/Safari.app")
+    let right = SavedApplication(name: "TextEdit", bundleIdentifier: "com.apple.TextEdit", bundlePath: "/System/Applications/TextEdit.app")
+    let draft = WorkspaceDraft(id: 1)
+    draft.leftApplication = left
+    draft.rightApplication = right
+    let output = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        .appendingPathComponent(".build/split-ratio-previews")
+
+    func check<V: View>(_ view: V, width: Double, name: String) throws {
+        let host = NSHostingView(rootView: view.frame(width: width).fixedSize(horizontal: false, vertical: true)
+            .padding(16).background(Color(nsColor: .windowBackgroundColor)))
+        #expect(abs(host.fittingSize.width - width - 32) < 0.001)
+        #expect(host.fittingSize.height > 50)
+        guard ProcessInfo.processInfo.environment["TWIST_SPLIT_RATIO_PREVIEWS"] == "1" else { return }
+        host.setFrameSize(host.fittingSize)
+        host.layoutSubtreeIfNeeded()
+        let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        try #require(bitmap.representation(using: .png, properties: [:])).write(to: output.appendingPathComponent("\(name).png"))
+    }
+
+    for percentage in [10, 50, 65, 90] {
+        for width in [110.0, 240.0] {
+            try check(SplitRatioPreview(leftPercentage: percentage, leftApplication: left, rightApplication: right),
+                      width: width, name: "preview-\(percentage)-\(Int(width))")
+        }
+        draft.leftPercentage = Double(percentage)
+        try check(WorkspaceRatioEditor(draft: draft), width: 472, name: "editor-\(percentage)")
+    }
+    draft.leftApplication = nil
+    draft.rightApplication = nil
+    try check(WorkspaceRatioEditor(draft: draft), width: 472, name: "editor-no-apps")
+    for dragging in [false, true] {
+        try check(SplitScreenPreview(leftPercentage: 50, leftApplication: left, rightApplication: right,
+                                     showsDividerHandle: true, dividerHovered: true, dividerDragging: dragging)
+            .frame(width: 360, height: 202.5), width: 472, name: dragging ? "divider-dragging" : "divider-hover")
+    }
+
+    let model = WorkspaceViewModel(store: WorkspaceStore(url: output.appendingPathComponent("unused-workspaces.json")), catalog: { [left, right] })
+    draft.leftApplication = left
+    draft.rightApplication = right
+    draft.leftPercentage = 50
+    draft.name = "Example combination"
+    // Measure the complete sheet without fixedSize, which can hide compression during AppKit's fitting pass.
+    let sheet = NSHostingView(rootView: WorkspaceEditorView(model: model, draft: draft)
+        .background(Color(nsColor: .windowBackgroundColor)))
+    #expect(abs(sheet.fittingSize.width - 520) < 0.001)
+    #expect(sheet.fittingSize.height > 450)
+    if ProcessInfo.processInfo.environment["TWIST_SPLIT_RATIO_PREVIEWS"] == "1" {
+        sheet.setFrameSize(sheet.fittingSize)
+        sheet.layoutSubtreeIfNeeded()
+        let bitmap = try #require(sheet.bitmapImageRepForCachingDisplay(in: sheet.bounds))
+        sheet.cacheDisplay(in: sheet.bounds, to: bitmap)
+        try #require(bitmap.representation(using: .png, properties: [:])).write(to: output.appendingPathComponent("complete-editor.png"))
+    }
+}
+
 @Test func panelLeavesSpaceAroundEitherScreenEdge() {
     let screen = CGRect(x: -1920, y: 40, width: 1920, height: 1000)
     for left in [true, false] {
@@ -147,7 +252,13 @@ import Testing
     settings.quickLaunchShowNames = false
     try preview(WorkspacePanelView(model: model, panelSettings: settings, close: {}, settings: {})
         .frame(width: 460, height: 700).background(Color(nsColor: .windowBackgroundColor)), name: "panel")
+    model.controlTab = .combinations
+    try preview(WorkspaceControlView(model: model, settings: settings, showPanel: {})
+        .frame(width: 620, height: 540).background(Color(nsColor: .windowBackgroundColor)), name: "combinations")
     model.controlTab = .quickLaunch
     try preview(WorkspaceControlView(model: model, settings: settings, showPanel: {})
         .frame(width: 620, height: 540).background(Color(nsColor: .windowBackgroundColor)), name: "management")
+    model.controlTab = .display
+    try preview(WorkspaceControlView(model: model, settings: settings, showPanel: {})
+        .frame(width: 620, height: 540).background(Color(nsColor: .windowBackgroundColor)), name: "display")
 }
