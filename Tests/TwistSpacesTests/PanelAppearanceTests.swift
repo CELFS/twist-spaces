@@ -53,6 +53,37 @@ import Testing
     #expect(window.frame == firstFrame)
 }
 
+@Test @MainActor func hostedControlWindowRemainsCenteredAfterLayout() async throws {
+    let suite = "local.twist-spaces.tests.\(ProcessInfo.processInfo.globallyUniqueString)"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        .appendingPathComponent(".build/control-position-\(ProcessInfo.processInfo.globallyUniqueString)")
+    let model = WorkspaceViewModel(store: WorkspaceStore(url: directory.appendingPathComponent("workspaces.json")), catalog: { [] })
+    let controller = WorkspaceControlController(model: model, settings: PanelSettings(defaults: defaults), showPanel: {})
+    let window = try #require(controller.window)
+    defer { window.close() }
+    controller.present()
+    let presentedFrame = window.frame
+    // The real hosting controller can update the window after present() returns.
+    try await Task.sleep(for: .milliseconds(150))
+    let screen = try #require(window.screen)
+    #expect(window.frame == presentedFrame)
+    #expect(abs(window.frame.midX - screen.visibleFrame.midX) < 1)
+    #expect(screen.visibleFrame.contains(window.frame))
+
+    window.setContentSize(NSSize(width: 860, height: 560))
+    try await Task.sleep(for: .milliseconds(150))
+    let resizedSize = window.frame.size
+    window.setFrameOrigin(CGPoint(x: screen.visibleFrame.maxX - resizedSize.width, y: screen.visibleFrame.minY))
+    window.close()
+    controller.present()
+    try await Task.sleep(for: .milliseconds(150))
+    #expect(window.frame.size == resizedSize)
+    #expect(abs(window.frame.midX - screen.visibleFrame.midX) < 1)
+    #expect(screen.visibleFrame.contains(window.frame))
+}
+
 @Test @MainActor func pinnedPanelReturnsToDesktopAndCanBeTemporarilyRevealed() async throws {
     let suite = "local.twist-spaces.tests.\(ProcessInfo.processInfo.globallyUniqueString)"
     let defaults = try #require(UserDefaults(suiteName: suite))
