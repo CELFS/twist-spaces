@@ -12,7 +12,7 @@ struct WorkspaceControlView: View {
             Divider()
             VStack(spacing: 0) {
                 HStack {
-                    Text(L10n.text("control.title")).font(.title2.bold())
+                    Text(L10n.text(model.controlTab.titleKey)).font(.title2.bold())
                     Spacer()
                 }
                 .padding(.bottom, 8)

@@ -6,7 +6,6 @@ struct CombinationsManagementView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(L10n.text("control.combinations")).font(.headline)
                 Spacer()
                 Button(L10n.text("workspace.new")) { model.newWorkspace() }
                     .disabled(!model.canSave || model.isBusy)
