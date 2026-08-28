@@ -360,11 +360,11 @@ import Testing
         }
     }
     try preview(WorkspaceControlView(model: model, settings: settings, showPanel: {})
-        .frame(width: 620, height: 540).background(Color(nsColor: .windowBackgroundColor)), name: "combinations")
+        .frame(width: 801, height: 540).background(Color(nsColor: .windowBackgroundColor)), name: "combinations")
     model.controlTab = .quickLaunch
     try preview(WorkspaceControlView(model: model, settings: settings, showPanel: {})
-        .frame(width: 620, height: 540).background(Color(nsColor: .windowBackgroundColor)), name: "management")
+        .frame(width: 801, height: 540).background(Color(nsColor: .windowBackgroundColor)), name: "management")
     model.controlTab = .display
     try preview(WorkspaceControlView(model: model, settings: settings, showPanel: {})
-        .frame(width: 620, height: 540).background(Color(nsColor: .windowBackgroundColor)), name: "display")
+        .frame(width: 801, height: 540).background(Color(nsColor: .windowBackgroundColor)), name: "display")
 }

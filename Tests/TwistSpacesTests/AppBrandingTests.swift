@@ -52,10 +52,10 @@ import Testing
     let settings = PanelSettings(defaults: defaults)
     let controller = WorkspaceControlController(model: model, settings: settings, showPanel: {})
     let window = try #require(controller.window)
-    let accessory = try #require(window.titlebarAccessoryViewControllers.first as? GitHubTitlebarAccessory)
+    let accessory = try #require(window.titlebarAccessoryViewControllers.first as? ControlTitlebarAccessory)
     #expect(window.titlebarAccessoryViewControllers.count == 1)
     #expect(accessory.layoutAttribute == .right)
-    #expect(accessory.view.frame.width == 40)
+    #expect(accessory.view.frame.width == 80)
 
     func check<V: View>(_ view: V, width: CGFloat, height: CGFloat, name: String) throws {
         let host = NSHostingView(rootView: view.frame(width: width, height: height)
@@ -76,8 +76,10 @@ import Testing
         try check(WorkspacePanelView(model: model, panelSettings: settings, close: {}, settings: {}),
                   width: width, height: 700, name: "panel-\(Int(width))")
     }
-    try check(WorkspaceControlView(model: model, settings: settings, showPanel: {}),
-              width: 620, height: 540, name: "control")
+    for width in [801.0, 920.0] {
+        try check(WorkspaceControlView(model: model, settings: settings, showPanel: {}),
+                  width: width, height: 540, name: "control-\(Int(width))")
+    }
     try check(HStack(spacing: 24) {
         AppLogoView(size: 64)
         AppLogoView(size: 64, monochrome: true)
