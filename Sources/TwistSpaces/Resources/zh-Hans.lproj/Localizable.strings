@@ -172,3 +172,7 @@
 "about.version" = "版本";
 "about.copyright" = "© 2026 CELFS";
 "control.layoutPanel" = "布局面板";
+"menu.restart" = "重启 Twist Spaces";
+"action.restart" = "重启";
+"restart.failed" = "无法重启 Twist Spaces";
+"restart.unavailableApplication" = "未找到应用程序。请从 Twist Spaces 的 .app 应用包打开后重试。";

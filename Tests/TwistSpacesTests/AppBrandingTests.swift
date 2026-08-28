@@ -6,7 +6,8 @@ import Testing
 @Test @MainActor func brandingCopyAndRepositoryAreAvailableInBothLanguages() {
     #expect(L10n.text("action.quit", language: .english) == "Quit")
     #expect(L10n.text("action.quit", language: .simplifiedChinese) == "退出")
-    for key in ["about.title", "about.version", "about.copyright", "about.github", "control.layoutPanel"] {
+    for key in ["about.title", "about.version", "about.copyright", "about.github", "control.layoutPanel",
+                "menu.restart", "action.restart", "restart.failed", "restart.unavailableApplication"] {
         for language in [AppLanguage.english, .simplifiedChinese] {
             #expect(L10n.text(key, language: language) != key)
         }
@@ -90,6 +91,7 @@ import Testing
         AppLogoView(size: 64, monochrome: true)
         GitHubMark().frame(width: 48, height: 48)
         GitHubLink(showsAddress: true)
+        RestartApplicationButton()
         QuitApplicationButton()
     }.padding(24), width: 620, height: 120, name: "branding")
 }

@@ -172,3 +172,7 @@
 "action.quit" = "Quit";
 "about.github" = "View on GitHub";
 "control.layoutPanel" = "Layout Panel";
+"menu.restart" = "Restart Twist Spaces";
+"action.restart" = "Restart";
+"restart.failed" = "Unable to restart Twist Spaces";
+"restart.unavailableApplication" = "The application could not be found. Open Twist Spaces from its .app bundle and try again.";

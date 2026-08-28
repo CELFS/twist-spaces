@@ -24,6 +24,8 @@ struct WorkspaceControlView: View {
                 }
                 HStack {
                     Spacer()
+                    RestartApplicationButton()
+                        .padding(.trailing, 8)
                     QuitApplicationButton()
                 }
                 .padding(.top, 4)

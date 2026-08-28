@@ -64,8 +64,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         #endif
 
+        let restart = NSMenuItem(title: L10n.text("action.restart"),
+                                 action: #selector(ApplicationRestarter.restart(_:)), keyEquivalent: "")
+        restart.target = ApplicationRestarter.shared
+        menu.addItem(restart)
         let quit = NSMenuItem(
-            title: L10n.text("menu.quit"),
+            title: L10n.text("action.quit"),
             action: #selector(NSApplication.terminate(_:)),
             keyEquivalent: "q"
         )
