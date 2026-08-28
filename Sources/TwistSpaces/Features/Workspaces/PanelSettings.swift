@@ -58,6 +58,7 @@ struct PanelSettingsView: View {
                     .frame(maxWidth: .infinity)
             }
             Toggle(L10n.text("panel.edgeEnabled"), isOn: $settings.edgeEnabled)
+                .appControlHover()
                 .padding(.leading, AppFormLayout.contentInset)
             HStack(spacing: AppFormLayout.spacing) {
                 Text(String(format: L10n.text("panel.edgeDelay"), settings.edgeDelay))
@@ -67,6 +68,7 @@ struct PanelSettingsView: View {
                     .frame(maxWidth: .infinity)
             }.disabled(!settings.edgeEnabled)
             Toggle(L10n.text("panel.shortcutEnabled"), isOn: $settings.shortcutEnabled)
+                .appControlHover()
                 .padding(.leading, AppFormLayout.contentInset)
             Text(L10n.text("panel.behaviorHelp")).font(.caption).foregroundStyle(.secondary)
                 .padding(.leading, AppFormLayout.contentInset)

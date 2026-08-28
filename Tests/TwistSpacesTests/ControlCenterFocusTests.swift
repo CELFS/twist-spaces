@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import Testing
 @testable import TwistSpaces
 
@@ -24,5 +25,34 @@ import Testing
     #expect(button.toolTip == L10n.text("control.showPanel"))
     #expect(button.isEnabled)
     button.performClick(nil)
+    #expect(activationCount == 1)
+}
+
+@Test @MainActor func sharedNativeButtonStylePreservesActivationDisabledStateAndSize() throws {
+    var activationCount = 0
+    func styled(_ disabled: Bool) -> some View {
+        Button(L10n.text("workspace.save")) { activationCount += 1 }
+            .buttonStyle(AppNativeButtonStyle())
+            .disabled(disabled)
+    }
+    let host = NSHostingView(rootView: styled(false))
+    let original = NSHostingView(rootView: Button(L10n.text("workspace.save"), action: {}).buttonStyle(.automatic))
+    host.setFrameSize(host.fittingSize)
+    host.layoutSubtreeIfNeeded()
+    #expect(abs(host.fittingSize.width - original.fittingSize.width) < 1)
+    #expect(abs(host.fittingSize.height - original.fittingSize.height) < 1)
+
+    func findButton(_ view: NSView) -> NSButton? {
+        if let button = view as? NSButton { return button }
+        return view.subviews.lazy.compactMap { findButton($0) }.first
+    }
+    let enabledButton = try #require(findButton(host))
+    enabledButton.performClick(nil)
+    #expect(activationCount == 1)
+    host.rootView = styled(true)
+    host.layoutSubtreeIfNeeded()
+    let disabledButton = try #require(findButton(host))
+    #expect(!disabledButton.isEnabled)
+    disabledButton.performClick(nil)
     #expect(activationCount == 1)
 }

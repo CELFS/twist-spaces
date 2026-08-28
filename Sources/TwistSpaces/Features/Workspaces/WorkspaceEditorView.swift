@@ -34,6 +34,7 @@ struct WorkspaceEditorView: View {
         }
         .padding(24)
         .frame(width: 520)
+        .buttonStyle(AppNativeButtonStyle())
         .disabled(model.isBusy)
     }
 }

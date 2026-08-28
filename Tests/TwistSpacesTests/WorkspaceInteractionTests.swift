@@ -15,6 +15,34 @@ private let assistantApp = SavedApplication(name: "Assistant", bundleIdentifier:
     weak var value: WorkspaceViewModel?
 }
 
+@Test @MainActor func controlCursorTracksDisabledStateAndDoesNotResetAnotherControl() {
+    let original = NSCursor.current
+    let first = AppControlCursor()
+    let second = AppControlCursor()
+    defer { first.deactivate(); second.deactivate(); original.set() }
+    NSCursor.arrow.set()
+
+    #expect(!first.update(isInside: true, isEnabled: false))
+    #expect(NSCursor.current == .arrow)
+    #expect(first.update(isInside: true, isEnabled: true))
+    #expect(NSCursor.current == .pointingHand)
+    #expect(!first.update(isInside: true, isEnabled: false))
+    #expect(NSCursor.current == .arrow)
+    #expect(first.update(isInside: true, isEnabled: true))
+    #expect(second.update(isInside: true, isEnabled: true))
+    first.deactivate()
+    #expect(NSCursor.current == .pointingHand)
+    #expect(!second.update(isInside: false, isEnabled: true))
+    #expect(NSCursor.current == .arrow)
+
+    for nativeCursor in [NSCursor.iBeam, .openHand, .closedHand] {
+        first.update(isInside: true, isEnabled: true)
+        nativeCursor.set()
+        first.deactivate()
+        #expect(NSCursor.current == nativeCursor)
+    }
+}
+
 @Test @MainActor func editorBindingsSurviveRepeatedDismissalAndCannotChangeNextDraft() throws {
     let directory = fixtureDirectory()
     let model = WorkspaceViewModel(store: WorkspaceStore(url: directory.appendingPathComponent("workspaces.json")), catalog: { [] })

@@ -28,7 +28,7 @@ struct WorkspacePanelView: View {
                 Button(action: close) { Image(systemName: "xmark") }.help(L10n.text("panel.close"))
                     .accessibilityLabel(L10n.text("panel.close"))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppButtonStyle())
             GeometryReader { geometry in
                 VStack(alignment: .leading, spacing: 16) {
                     QuickLaunchSection(model: model, settings: panelSettings, availableWidth: geometry.size.width) {
@@ -60,14 +60,14 @@ struct WorkspacePanelView: View {
                 Button(L10n.text(model.selectedIDs.count == model.library.workspaces.count && !model.selectedIDs.isEmpty ? "display.deselectAll" : "display.selectAll")) {
                     if model.selectedIDs.count == model.library.workspaces.count { model.selectedIDs.removeAll() }
                     else { model.selectedIDs = Set(model.library.workspaces.map(\.id)) }
-                }.buttonStyle(.plain).disabled(model.library.workspaces.isEmpty || model.isBusy)
+                }.buttonStyle(AppTextButtonStyle()).disabled(model.library.workspaces.isEmpty || model.isBusy)
                 Spacer()
                 if model.isBusy { ProgressView().controlSize(.small) }
                 Button(L10n.text("launch.batchActivate")) { Task { await model.openApplications(for: model.selectedIDs, action: .activate) } }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(AppNativeButtonStyle(prominent: true))
                     .disabled(model.selectedIDs.isEmpty || model.isBusy)
                 Button(L10n.text("launch.batchNew")) { Task { await model.openApplications(for: model.selectedIDs, action: .newWindows) } }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(AppNativeButtonStyle())
                     .disabled(model.selectedIDs.isEmpty || model.isBusy)
             }
             HStack {
@@ -77,6 +77,7 @@ struct WorkspacePanelView: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .buttonStyle(AppNativeButtonStyle())
         .id(language.selection)
     }
 }

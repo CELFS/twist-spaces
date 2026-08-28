@@ -53,6 +53,7 @@ struct DiagnosticsView: View {
                 .foregroundStyle(.secondary)
         }
         .padding(24)
+        .buttonStyle(AppNativeButtonStyle())
         .frame(minWidth: 602, minHeight: 434)
         .id(language.selection)
         .onAppear { model.refresh() }

@@ -3,7 +3,6 @@ import SwiftUI
 
 struct QuitApplicationButton: View {
     var showsIcon = false
-    @State private var hovered = false
 
     var body: some View {
         Button {
@@ -16,20 +15,7 @@ struct QuitApplicationButton: View {
                 Text(L10n.text("action.quit"))
             }
         }
-        .buttonStyle(QuitButtonStyle(hovered: hovered))
-        .onContinuousHover { phase in
-            switch phase {
-            case .active:
-                hovered = true
-                NSCursor.pointingHand.set()
-            case .ended:
-                hovered = false
-                NSCursor.arrow.set()
-            }
-        }
-        .onDisappear {
-            if hovered { NSCursor.arrow.set() }
-        }
+        .buttonStyle(QuitButtonStyle())
         .help(L10n.text("menu.quit"))
         .accessibilityLabel(L10n.text("menu.quit"))
     }

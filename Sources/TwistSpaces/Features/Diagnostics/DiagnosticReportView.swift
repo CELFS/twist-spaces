@@ -32,7 +32,7 @@ struct DiagnosticReportView: View {
                     Image(systemName: copyStatus == .copied ? "checkmark" : "doc.on.doc")
                         .frame(width: 24, height: 24)
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(AppButtonStyle())
                 .help(L10n.text("diagnostics.copy"))
                 .accessibilityLabel(L10n.text("diagnostics.copy"))
                 .disabled(report.isEmpty || isInspecting)

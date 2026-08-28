@@ -6,7 +6,6 @@ struct WorkspaceControlNavigationButton: View {
     let isSelected: Bool
     var showsArrow = false
     let action: () -> Void
-    @State private var hovered = false
 
     var body: some View {
         Button(action: action) {
@@ -27,15 +26,10 @@ struct WorkspaceControlNavigationButton: View {
             }
             .frame(maxWidth: .infinity, minHeight: 34, alignment: .leading)
             .padding(.horizontal, 10)
-            .background(Color.primary.opacity(isSelected ? 0.18 : (hovered ? 0.1 : 0)),
-                        in: RoundedRectangle(cornerRadius: 6))
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppButtonStyle(isSelected: isSelected))
         .focusEffectDisabled()
-        .pointerStyle(.link)
-        .onHover { hovered = $0 }
-        .animation(.easeInOut(duration: 0.12), value: hovered)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

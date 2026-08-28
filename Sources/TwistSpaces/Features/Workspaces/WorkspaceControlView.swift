@@ -35,6 +35,7 @@ struct WorkspaceControlView: View {
             .frame(minWidth: 620)
         }
         .frame(minHeight: 420)
+        .buttonStyle(AppNativeButtonStyle())
         .id(language.selection)
         .sheet(item: $model.draft) { draft in
             WorkspaceEditorView(model: model, draft: draft)

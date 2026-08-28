@@ -27,6 +27,7 @@ struct AppPicker<Selection: Hashable, Options: View>: View {
                 .pickerStyle(.menu)
                 .controlSize(.regular)
                 .frame(width: width.rawValue)
+                .appControlHover()
                 .accessibilityLabel(L10n.text(titleKey))
         }
     }

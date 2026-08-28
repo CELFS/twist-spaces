@@ -8,7 +8,6 @@ struct QuickLaunchApplicationButton: View {
     let result: WorkspaceLaunchResult?
     let open: () -> Void
     let hide: () -> Void
-    @State private var hovered = false
 
     var body: some View {
         Button(action: open) {
@@ -29,13 +28,11 @@ struct QuickLaunchApplicationButton: View {
             }
             .frame(maxWidth: .infinity)
             .frame(height: showName ? 76 : 52)
-            .background(.primary.opacity(hovered ? 0.08 : 0.025), in: RoundedRectangle(cornerRadius: 8))
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .onHover { hovered = $0 }
+        .buttonStyle(AppButtonStyle(cornerRadius: 8, idleOpacity: 0.025, hoverOpacity: 0.08))
         .help(String(format: L10n.text("quickLaunch.openApplication"), application.name))
         .accessibilityLabel(String(format: L10n.text("quickLaunch.openApplication"), application.name))
-        .contextMenu { Button(L10n.text("quickLaunch.hide"), action: hide) }
+        .contextMenu { Button(L10n.text("quickLaunch.hide"), action: hide).buttonStyle(.automatic) }
     }
 }

@@ -1,15 +1,9 @@
 import SwiftUI
 
-struct QuitButtonStyle: ButtonStyle {
-    let hovered: Bool
-
+struct QuitButtonStyle: PrimitiveButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         // Keep the lightweight appearance while making hover and mouse-down visible.
-        configuration.label
-            .foregroundStyle(hovered ? Color.primary : Color.secondary)
-            .underline(hovered)
-            .opacity(configuration.isPressed ? 0.55 : 1)
-            .padding(.vertical, 3)
-            .contentShape(Rectangle())
+        Button(configuration)
+            .buttonStyle(AppTextButtonStyle(idleColor: .secondary, hoverColor: .primary, verticalPadding: 3))
     }
 }

@@ -3,6 +3,7 @@ import SwiftUI
 struct WorkspaceCardView: View {
     let workspace: Workspace
     @ObservedObject var model: WorkspaceViewModel
+    @Environment(\.isEnabled) private var isEnabled
     @State private var hovered = false
 
     var body: some View {
@@ -37,13 +38,13 @@ struct WorkspaceCardView: View {
                 .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppButtonStyle(hoverOpacity: 0))
             .accessibilityLabel(String(format: L10n.text("workspace.selectCombination"), workspace.name))
             .accessibilityValue(L10n.text(model.selectedIDs.contains(workspace.id) ? "workspace.selected" : "workspace.notSelected"))
             WorkspaceActionButtons(workspaceID: workspace.id, model: model)
         }
         .padding(12)
-        .background(.primary.opacity(hovered ? 0.06 : 0.025), in: RoundedRectangle(cornerRadius: 10))
+        .background(.primary.opacity(isEnabled && !model.isBusy && hovered ? 0.06 : 0.025), in: RoundedRectangle(cornerRadius: 10))
         .onHover { hovered = $0 }
         .disabled(model.isBusy)
         .accessibilityElement(children: .contain)

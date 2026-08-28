@@ -14,7 +14,9 @@ struct QuickLaunchManagementView: View {
             Text(L10n.text("quickLaunch.managementHelp")).font(.caption).foregroundStyle(.secondary)
             HStack(spacing: 16) {
                 Toggle(L10n.text("quickLaunch.showNames"), isOn: $settings.quickLaunchShowNames)
+                    .appControlHover()
                 Toggle(L10n.text("quickLaunch.expand"), isOn: $settings.quickLaunchExpanded)
+                    .appControlHover()
             }
             HStack {
                 ApplicationPickerView(titleKey: "quickLaunch.application", applications: model.applications,
