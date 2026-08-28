@@ -98,3 +98,29 @@ private func sampleLibrary() -> WorkspaceLibrary {
     #expect(L10n.text("workspace.openBoundary", language: .english).contains("not implemented"))
     #expect(L10n.text("workspace.new", language: .english) == "New combination")
 }
+
+@Test func olderLibraryLoadsAutomaticQuickLaunchWithoutRewriting() throws {
+    let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    let directory = root.appendingPathComponent(".build/legacy-quick-launch-\(ProcessInfo.processInfo.globallyUniqueString)")
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let store = WorkspaceStore(url: directory.appendingPathComponent("workspaces.json"))
+    var old = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(sampleLibrary())) as? [String: Any])
+    old.removeValue(forKey: "quickLaunch")
+    let original = try JSONSerialization.data(withJSONObject: old)
+    try original.write(to: store.url)
+    let loaded = try store.load()
+    #expect(loaded.quickLaunch == QuickLaunchConfiguration())
+    #expect(loaded.quickLaunch.visibleApplications(in: loaded.workspaces) == loaded.workspaces[0].applications)
+    #expect(try Data(contentsOf: store.url) == original)
+}
+
+@Test func invalidQuickLaunchConfigurationCannotBeSaved() {
+    var library = sampleLibrary()
+    let application = library.workspaces[0].left.application
+    library.quickLaunch.addedApplications = [application, application]
+    #expect(throws: WorkspaceError.invalidLibrary) { try library.validate() }
+    library.quickLaunch.addedApplications = []
+    library.quickLaunch.orderedApplicationIDs = [application.id, application.id]
+    #expect(throws: WorkspaceError.invalidLibrary) { try library.validate() }
+}

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct WorkspacePanelView: View {
     @ObservedObject var model: WorkspaceViewModel
+    @ObservedObject var panelSettings: PanelSettings
     @ObservedObject private var language = LanguageSettings.shared
     let close: () -> Void
     let settings: () -> Void
@@ -18,18 +19,26 @@ struct WorkspacePanelView: View {
                     .accessibilityLabel(L10n.text("panel.close"))
             }
             .buttonStyle(.plain)
-            if model.library.workspaces.isEmpty {
-                Spacer()
-                Text(L10n.text("display.empty")).foregroundStyle(.secondary).frame(maxWidth: .infinity)
-                Button(L10n.text("control.title"), action: settings).frame(maxWidth: .infinity)
-                Spacer()
-            } else {
+            GeometryReader { geometry in
                 ScrollView {
-                    LazyVStack(spacing: 8) {
-                        ForEach(model.library.workspaces) { workspace in
-                            WorkspaceCardView(workspace: workspace, model: model)
+                    VStack(alignment: .leading, spacing: 16) {
+                        QuickLaunchSection(model: model, settings: panelSettings, availableWidth: geometry.size.width) {
+                            model.controlTab = .quickLaunch
+                            settings()
+                        }
+                        Divider()
+                        if model.library.workspaces.isEmpty {
+                            Text(L10n.text("display.empty")).foregroundStyle(.secondary).frame(maxWidth: .infinity)
+                            Button(L10n.text("control.title"), action: settings).frame(maxWidth: .infinity)
+                        } else {
+                            LazyVStack(spacing: 8) {
+                                ForEach(model.library.workspaces) { workspace in
+                                    WorkspaceCardView(workspace: workspace, model: model)
+                                }
+                            }
                         }
                     }
+                    .frame(maxWidth: .infinity)
                 }
             }
             Divider()

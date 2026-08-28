@@ -129,3 +129,29 @@ private func group(_ id: Int) -> Workspace {
     #expect(host.fittingSize.width >= 36)
     #expect(host.fittingSize.height >= 36)
 }
+
+@Test @MainActor func singleAppOpeningNeverCallsSplitViewOrActivate() async {
+    var created: [URL] = []
+    var activated = 0
+    var split = 0
+    let launcher = WorkspaceLauncher(resolve: { URL(fileURLWithPath: $0.bundlePath) }, launch: { _ in activated += 1 },
+                                     createWindow: { created.append($0) }, openWorkspace: { _, _, _ in
+        split += 1
+        return .splitApplied(50)
+    })
+    #expect(await launcher.openSingleApplication(first) == .startedOrCreated)
+    #expect(created.map(\.path) == [first.bundlePath])
+    #expect(activated == 0 && split == 0)
+}
+
+@Test @MainActor func singleAppFailureDoesNotFallBackOrCreateAnotherWindow() async {
+    var created = 0
+    var activated = 0
+    let launcher = WorkspaceLauncher(resolve: { URL(fileURLWithPath: $0.bundlePath) }, launch: { _ in activated += 1 },
+                                     createWindow: { _ in created += 1; throw NewWindowError.unsupported })
+    #expect(await launcher.openSingleApplication(first) == .failed(NewWindowError.unsupported.localizedDescription))
+    #expect(created == 1 && activated == 0)
+    let missing = WorkspaceLauncher(resolve: { _ in throw CocoaError(.fileNoSuchFile) }, createWindow: { _ in created += 1 })
+    #expect(await missing.openSingleApplication(first) == .failed(L10n.text("quickLaunch.applicationMissing")))
+    #expect(created == 1)
+}

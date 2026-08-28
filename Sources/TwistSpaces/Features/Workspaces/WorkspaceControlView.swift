@@ -1,10 +1,11 @@
 import SwiftUI
 
+enum WorkspaceControlTab: Hashable { case combinations, quickLaunch, display, language }
+
 struct WorkspaceControlView: View {
     @ObservedObject var model: WorkspaceViewModel
     @ObservedObject var settings: PanelSettings
     @ObservedObject private var language = LanguageSettings.shared
-    @State private var tab = 0
     let showPanel: () -> Void
 
     var body: some View {
@@ -15,7 +16,7 @@ struct WorkspaceControlView: View {
                 Button(L10n.text("control.showPanel"), action: showPanel)
                 QuitApplicationButton()
             }
-            TabView(selection: $tab) {
+            TabView(selection: $model.controlTab) {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
                         Text(L10n.text("control.combinations")).font(.headline)
@@ -38,10 +39,13 @@ struct WorkspaceControlView: View {
                     Text(L10n.text("control.layoutStatus")).font(.caption).foregroundStyle(.secondary)
                 }
                 .padding(16)
-                .tabItem { Text(L10n.text("control.combinations")) }.tag(0)
+                .tabItem { Text(L10n.text("control.combinations")) }.tag(WorkspaceControlTab.combinations)
+
+                QuickLaunchManagementView(model: model, settings: settings)
+                    .tabItem { Text(L10n.text("quickLaunch.title")) }.tag(WorkspaceControlTab.quickLaunch)
 
                 PanelSettingsView(settings: settings)
-                    .tabItem { Text(L10n.text("control.display")) }.tag(1)
+                    .tabItem { Text(L10n.text("control.display")) }.tag(WorkspaceControlTab.display)
 
                 SettingsPage {
                     AppPicker(titleKey: "language.title", selection: $language.selection, width: .compact) {
@@ -50,7 +54,7 @@ struct WorkspaceControlView: View {
                         Text(L10n.text("language.chinese")).tag(AppLanguage.simplifiedChinese)
                     }
                 }
-                .tabItem { Text(L10n.text("language.title")) }.tag(2)
+                .tabItem { Text(L10n.text("language.title")) }.tag(WorkspaceControlTab.language)
             }
             if let error = model.error {
                 Text(verbatim: error).foregroundStyle(.red).font(.callout).textSelection(.enabled)

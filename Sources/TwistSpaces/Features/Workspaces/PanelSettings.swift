@@ -9,6 +9,8 @@ final class PanelSettings: ObservableObject {
     @Published var edgeEnabled: Bool { didSet { defaults.set(edgeEnabled, forKey: "panel.edgeEnabled") } }
     @Published var edgeDelay: Double { didSet { defaults.set(edgeDelay, forKey: "panel.edgeDelay") } }
     @Published var shortcutEnabled: Bool { didSet { defaults.set(shortcutEnabled, forKey: "panel.shortcutEnabled") } }
+    @Published var quickLaunchExpanded: Bool { didSet { defaults.set(quickLaunchExpanded, forKey: "panel.quickLaunchExpanded") } }
+    @Published var quickLaunchShowNames: Bool { didSet { defaults.set(quickLaunchShowNames, forKey: "panel.quickLaunchShowNames") } }
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
@@ -30,6 +32,8 @@ final class PanelSettings: ObservableObject {
         let storedDelay = defaults.double(forKey: "panel.edgeDelay")
         edgeDelay = storedDelay == 0 ? 0.6 : min(max(storedDelay, 0.2), 2)
         shortcutEnabled = defaults.bool(forKey: "panel.shortcutEnabled")
+        quickLaunchExpanded = defaults.bool(forKey: "panel.quickLaunchExpanded")
+        quickLaunchShowNames = defaults.bool(forKey: "panel.quickLaunchShowNames")
         defaults.set(width, forKey: "panel.displayWidth")
         defaults.set(2, forKey: "panel.widthRevision")
     }

@@ -11,6 +11,10 @@ private func fixtureDirectory() -> URL {
 private let editorApp = SavedApplication(name: "Editor", bundleIdentifier: "test.editor", bundlePath: "/Applications/Editor.app")
 private let assistantApp = SavedApplication(name: "Assistant", bundleIdentifier: "test.assistant", bundlePath: "/Applications/Assistant.app")
 
+@MainActor private final class QuickLaunchModelReference {
+    weak var value: WorkspaceViewModel?
+}
+
 @Test @MainActor func editorBindingsSurviveRepeatedDismissalAndCannotChangeNextDraft() throws {
     let directory = fixtureDirectory()
     let model = WorkspaceViewModel(store: WorkspaceStore(url: directory.appendingPathComponent("workspaces.json")), catalog: { [] })
@@ -147,4 +151,104 @@ private let assistantApp = SavedApplication(name: "Assistant", bundleIdentifier:
     #expect(L10n.text("control.title", language: .simplifiedChinese) == "控制中心")
     #expect(L10n.text("control.title", language: .english) == "Control Center")
     #expect(L10n.text("test.missing.key", language: .simplifiedChinese) == "test.missing.key")
+}
+
+@Test func quickLaunchMergesGroupsBeforeManualAppsAndKeepsDistinctInstallations() {
+    let otherEditor = SavedApplication(name: "Editor", bundleIdentifier: editorApp.bundleIdentifier, bundlePath: "/Other/Editor.app")
+    let manualApp = SavedApplication(name: "Browser", bundleIdentifier: "test.browser", bundlePath: "/Applications/Browser.app")
+    let groups = [Workspace(id: 1, name: "One", projectPath: "", left: editorApp.windowRecord, right: assistantApp.windowRecord),
+                  Workspace(id: 2, name: "Two", projectPath: "", left: assistantApp.windowRecord, right: otherEditor.windowRecord)]
+    var configuration = QuickLaunchConfiguration()
+    configuration.add(manualApp)
+    configuration.add(editorApp)
+    configuration.add(manualApp)
+    #expect(configuration.applications(in: groups) == [editorApp, assistantApp, otherEditor, manualApp])
+    configuration.setVisible(false, id: assistantApp.id)
+    #expect(configuration.visibleApplications(in: groups) == [editorApp, otherEditor, manualApp])
+    configuration.move(manualApp.id, by: -1, in: groups)
+    #expect(configuration.visibleApplications(in: groups) == [editorApp, manualApp, otherEditor])
+    configuration.setVisible(true, id: assistantApp.id)
+    #expect(configuration.visibleApplications(in: groups) == [editorApp, assistantApp, manualApp, otherEditor])
+    configuration.removeManualApplication(editorApp.id)
+    #expect(configuration.visibleApplications(in: groups).contains(editorApp))
+    #expect(configuration.visibleApplications(in: []) == [manualApp])
+    configuration.removeManualApplication(manualApp.id)
+    #expect(configuration.visibleApplications(in: []).isEmpty)
+}
+
+@Test @MainActor func quickLaunchCustomizationsSurviveRelaunchAndCombinationEdits() throws {
+    let directory = fixtureDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let store = WorkspaceStore(url: directory.appendingPathComponent("workspaces.json"))
+    let group = Workspace(id: 1, name: "One", projectPath: "", left: editorApp.windowRecord, right: assistantApp.windowRecord)
+    try store.save(WorkspaceLibrary(nextID: 2, workspaces: [group]))
+    let model = WorkspaceViewModel(store: store, catalog: { [] })
+    model.updateQuickLaunch {
+        $0.add(editorApp)
+        $0.setVisible(false, id: assistantApp.id)
+        $0.move(assistantApp.id, by: -1, in: [group])
+    }
+    #expect(model.library.workspaces == [group])
+    let restored = WorkspaceViewModel(store: store, catalog: { [] })
+    #expect(restored.library.quickLaunch == model.library.quickLaunch)
+    #expect(restored.quickLaunchApplications == [editorApp])
+    restored.edit(group)
+    let draft = try #require(restored.draft)
+    draft.rightApplication = editorApp
+    restored.saveDraft(draft)
+    #expect(restored.library.quickLaunch.hiddenApplicationIDs.contains(assistantApp.id))
+    restored.edit(try #require(restored.library.workspaces.first))
+    let nextDraft = try #require(restored.draft)
+    nextDraft.rightApplication = assistantApp
+    restored.saveDraft(nextDraft)
+    #expect(restored.quickLaunchApplications == [editorApp])
+    restored.updateQuickLaunch { $0.add(assistantApp) }
+    #expect(restored.quickLaunchApplications == [assistantApp, editorApp])
+    #expect(try store.load().quickLaunch == restored.library.quickLaunch)
+}
+
+@Test @MainActor func quickLaunchWorksWithoutGroupsAndBlocksReentrantLaunches() async throws {
+    let directory = fixtureDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let reference = QuickLaunchModelReference()
+    var opened: [URL] = []
+    let launcher = WorkspaceLauncher(resolve: { URL(fileURLWithPath: $0.bundlePath) }, createWindow: { url in
+        opened.append(url)
+        let current = try #require(reference.value)
+        #expect(current.isBusy)
+        #expect(current.openingQuickLaunchID == editorApp.id)
+        await current.openQuickLaunchApplication(assistantApp)
+        current.updateQuickLaunch { $0.setVisible(false, id: editorApp.id) }
+        #expect(current.quickLaunchApplications == [editorApp, assistantApp])
+    })
+    let current = WorkspaceViewModel(store: WorkspaceStore(url: directory.appendingPathComponent("workspaces.json")), launcher: launcher, catalog: { [] })
+    reference.value = current
+    current.updateQuickLaunch { $0.add(editorApp); $0.add(assistantApp) }
+    current.refreshApplications()
+    #expect(Set(current.applications) == [editorApp, assistantApp])
+    await current.openQuickLaunchApplication(editorApp)
+    #expect(opened.map(\.path) == [editorApp.bundlePath])
+    #expect(current.quickLaunchOutcome?.result == .startedOrCreated)
+    #expect(!current.isBusy)
+    #expect(current.openingQuickLaunchID == nil)
+    #expect(current.results.isEmpty && current.selectedIDs.isEmpty && current.library.workspaces.isEmpty)
+    current.updateQuickLaunch { $0.setVisible(false, id: assistantApp.id) }
+    await current.openQuickLaunchApplication(assistantApp)
+    #expect(opened.count == 1)
+}
+
+@Test @MainActor func quickLaunchSaveFailureKeepsConfigurationAndDamagedLibraryIsNeverReplaced() throws {
+    let directory = fixtureDirectory()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let blocked = directory.appendingPathComponent("blocked")
+    let model = WorkspaceViewModel(store: WorkspaceStore(url: blocked.appendingPathComponent("workspaces.json")), catalog: { [] })
+    try Data("not a directory".utf8).write(to: blocked)
+    model.updateQuickLaunch { $0.add(editorApp) }
+    #expect(model.quickLaunchApplications.isEmpty)
+    #expect(model.error != nil)
+    let damaged = WorkspaceViewModel(store: WorkspaceStore(url: blocked), catalog: { [] })
+    damaged.updateQuickLaunch { $0.add(editorApp) }
+    #expect(!damaged.canSave)
+    #expect(try Data(contentsOf: blocked) == Data("not a directory".utf8))
 }

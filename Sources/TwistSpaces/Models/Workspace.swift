@@ -78,9 +78,29 @@ struct WorkspaceLibrary: Codable, Equatable, Sendable {
     var version = 1
     var nextID = 1
     var workspaces: [Workspace] = []
+    var quickLaunch = QuickLaunchConfiguration()
+
+    init(version: Int = 1, nextID: Int = 1, workspaces: [Workspace] = [], quickLaunch: QuickLaunchConfiguration = .init()) {
+        self.version = version
+        self.nextID = nextID
+        self.workspaces = workspaces
+        self.quickLaunch = quickLaunch
+    }
+
+    private enum CodingKeys: String, CodingKey { case version, nextID, workspaces, quickLaunch }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        version = try values.decode(Int.self, forKey: .version)
+        nextID = try values.decode(Int.self, forKey: .nextID)
+        workspaces = try values.decode([Workspace].self, forKey: .workspaces)
+        // Older libraries acquire the automatic app list without a migration or rewrite on load.
+        quickLaunch = try values.decodeIfPresent(QuickLaunchConfiguration.self, forKey: .quickLaunch) ?? .init()
+    }
 
     func validate() throws {
         guard version == 1 else { throw WorkspaceError.unsupportedVersion }
+        try quickLaunch.validate()
         guard nextID > 0, nextID < Int.max, Set(workspaces.map(\.id)).count == workspaces.count,
               workspaces.allSatisfy({ $0.id > 0 && $0.id < nextID }) else {
             throw WorkspaceError.invalidLibrary

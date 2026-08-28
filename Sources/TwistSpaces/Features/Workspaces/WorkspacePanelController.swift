@@ -35,7 +35,7 @@ final class WorkspacePanelController: NSWindowController, NSWindowDelegate {
         panel.delegate = self
 
         let effect = PanelGlassView(frame: .zero)
-        let content = NSHostingView(rootView: WorkspacePanelView(model: model, close: { [weak self] in
+        let content = NSHostingView(rootView: WorkspacePanelView(model: model, panelSettings: settings, close: { [weak self] in
             self?.collapse()
         }, settings: { [weak self] in
             self?.collapse()

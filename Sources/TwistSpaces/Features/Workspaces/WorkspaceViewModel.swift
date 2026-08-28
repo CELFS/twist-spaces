@@ -12,6 +12,9 @@ final class WorkspaceViewModel: ObservableObject {
     @Published var draft: WorkspaceDraft?
     @Published var error: String?
     @Published private(set) var results: [Int: WorkspaceLaunchResult] = [:]
+    @Published var controlTab = WorkspaceControlTab.combinations
+    @Published private(set) var openingQuickLaunchID: String?
+    @Published private(set) var quickLaunchOutcome: (application: SavedApplication, result: WorkspaceLaunchResult)?
 
     private let store: WorkspaceStore
     private let launcher: WorkspaceLauncher
@@ -56,6 +59,7 @@ final class WorkspaceViewModel: ObservableObject {
         // Fresh metadata takes priority over a saved display name; identity is still bundle ID + path.
         var choices = catalog().filter { $0.bundleIdentifier != Bundle.main.bundleIdentifier }
         choices += library.workspaces.flatMap(\.applications)
+        choices += library.quickLaunch.addedApplications
         choices += [draft?.leftApplication, draft?.rightApplication].compactMap { $0 }
         var seen = Set<String>()
         applications = choices.filter { seen.insert($0.id).inserted }.sorted {
@@ -110,5 +114,53 @@ final class WorkspaceViewModel: ObservableObject {
         let workspaces = library.workspaces.filter { ids.contains($0.id) }
         let outcomes = await launcher.open(workspaces, action: action)
         results.merge(outcomes) { _, latest in latest }
+    }
+
+    var quickLaunchApplications: [SavedApplication] {
+        library.quickLaunch.visibleApplications(in: library.workspaces)
+    }
+
+    func updateQuickLaunch(_ change: (inout QuickLaunchConfiguration) -> Void) {
+        guard canSave, !isBusy else { return }
+        var updated = library
+        change(&updated.quickLaunch)
+        do {
+            try store.save(updated)
+            library = updated
+            error = nil
+        } catch { self.error = error.localizedDescription }
+    }
+
+    func browseQuickLaunchApplications() {
+        guard canSave, !isBusy else { return }
+        let picker = NSOpenPanel()
+        picker.allowedContentTypes = [.applicationBundle]
+        picker.allowsMultipleSelection = true
+        picker.directoryURL = URL(fileURLWithPath: "/Applications")
+        picker.prompt = L10n.text("applications.choose")
+        guard picker.runModal() == .OK else { return }
+        let applications = picker.urls.compactMap { ApplicationIdentity.read(at: $0) }
+        guard applications.count == picker.urls.count,
+              applications.allSatisfy({ $0.bundleIdentifier != Bundle.main.bundleIdentifier }) else {
+            error = L10n.text("applications.invalid")
+            return
+        }
+        updateQuickLaunch { configuration in
+            for application in applications { configuration.add(application) }
+        }
+        refreshApplications()
+    }
+
+    func openQuickLaunchApplication(_ application: SavedApplication) async {
+        guard !isBusy, quickLaunchApplications.contains(where: { $0.id == application.id }) else { return }
+        isBusy = true
+        openingQuickLaunchID = application.id
+        quickLaunchOutcome = nil
+        defer {
+            openingQuickLaunchID = nil
+            isBusy = false
+        }
+        let result = await launcher.openSingleApplication(application)
+        quickLaunchOutcome = (application, result)
     }
 }

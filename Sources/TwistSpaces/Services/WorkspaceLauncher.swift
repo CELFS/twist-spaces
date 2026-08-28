@@ -76,6 +76,17 @@ final class WorkspaceLauncher {
         _ = try await NSWorkspace.shared.openApplication(at: url, configuration: configuration)
     }
 
+    func openSingleApplication(_ application: SavedApplication) async -> WorkspaceLaunchResult {
+        let url: URL
+        do { url = try resolve(application) }
+        catch { return .failed(L10n.text("quickLaunch.applicationMissing")) }
+        // A single-app request never enters workspace matching, Split View, or ratio adjustment.
+        do {
+            try await createWindow(url)
+            return .startedOrCreated
+        } catch { return .failed(error.localizedDescription) }
+    }
+
     func open(_ workspaces: [Workspace], action: WorkspaceOpenAction = .activate) async -> [Int: WorkspaceLaunchResult] {
         var resolved: [String: URL] = [:]
         var applications: [SavedApplication] = []
