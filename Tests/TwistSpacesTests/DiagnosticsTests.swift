@@ -1,4 +1,6 @@
+import AppKit
 import Foundation
+import SwiftUI
 import Testing
 @testable import TwistSpaces
 
@@ -56,4 +58,42 @@ import Testing
 
 @Test func missingLocalizationKeysRemainVisible() {
     #expect(L10n.text("test.missing.key") == "test.missing.key")
+}
+
+@Test @MainActor func diagnosticsWindowRemainsCenteredAfterLayoutAndReopening() async throws {
+    let controller = DiagnosticsWindowController()
+    let window = try #require(controller.window)
+    defer { window.close() }
+    controller.showWindow(nil)
+    let presentedFrame = window.frame
+    // Allow the real SwiftUI content to finish its first layout before checking position.
+    try await Task.sleep(for: .milliseconds(150))
+    let screen = try #require(window.screen)
+    #expect(window.frame == presentedFrame)
+    #expect(window.contentRect(forFrameRect: window.frame).size == NSSize(width: 602, height: 434))
+    #expect(abs(window.frame.midX - screen.visibleFrame.midX) < 1)
+    #expect(screen.visibleFrame.contains(window.frame))
+
+    if ProcessInfo.processInfo.environment["TWIST_DIAGNOSTICS_PREVIEWS"] == "1" {
+        let view = NSHostingView(rootView: DiagnosticsView().frame(width: 602, height: 434)
+            .background(Color(nsColor: .windowBackgroundColor)))
+        view.setFrameSize(NSSize(width: 602, height: 434))
+        view.layoutSubtreeIfNeeded()
+        let bitmap = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+        view.cacheDisplay(in: view.bounds, to: bitmap)
+        let output = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent(".build/diagnostics-602x434.png")
+        try #require(bitmap.representation(using: .png, properties: [:])).write(to: output)
+    }
+
+    window.setContentSize(NSSize(width: 800, height: 560))
+    try await Task.sleep(for: .milliseconds(150))
+    let resizedSize = window.frame.size
+    window.setFrameOrigin(CGPoint(x: screen.visibleFrame.maxX - resizedSize.width, y: screen.visibleFrame.minY))
+    window.close()
+    controller.showWindow(nil)
+    try await Task.sleep(for: .milliseconds(150))
+    #expect(window.frame.size == resizedSize)
+    #expect(abs(window.frame.midX - screen.visibleFrame.midX) < 1)
+    #expect(screen.visibleFrame.contains(window.frame))
 }

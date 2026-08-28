@@ -28,7 +28,7 @@ struct DiagnosticsView: View {
             }
 
             HStack {
-                AppPicker(titleKey: "diagnostics.application", selection: $model.selectedPID, width: .wide) {
+                AppPicker(titleKey: "diagnostics.application", selection: $model.selectedPID, width: .regular) {
                     Text(L10n.text("diagnostics.chooseApplication"))
                         .tag(nil as Int32?)
                     ForEach(model.applications) { app in
@@ -53,7 +53,7 @@ struct DiagnosticsView: View {
                 .foregroundStyle(.secondary)
         }
         .padding(24)
-        .frame(minWidth: 700, minHeight: 480)
+        .frame(minWidth: 602, minHeight: 434)
         .id(language.selection)
         .onAppear { model.refresh() }
     }
