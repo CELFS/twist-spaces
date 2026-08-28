@@ -10,8 +10,10 @@ struct WorkspacePanelView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
+                AppLogoView(size: 20, monochrome: true)
                 Text(L10n.text("workspace.title")).font(.headline)
                 Spacer()
+                GitHubLink()
                 Button { panelSettings.isPinned.toggle() } label: {
                     Image(systemName: panelSettings.isPinned ? "pin.fill" : "pin")
                         .foregroundStyle(panelSettings.isPinned ? Color.accentColor : Color.primary)
@@ -22,7 +24,6 @@ struct WorkspacePanelView: View {
                 .accessibilityAddTraits(panelSettings.isPinned ? .isSelected : [])
                 Button(action: settings) { Image(systemName: "slider.horizontal.3") }.help(L10n.text("control.title"))
                     .accessibilityLabel(L10n.text("control.title"))
-                QuitApplicationButton(iconOnly: true)
                 Button(action: close) { Image(systemName: "xmark") }.help(L10n.text("panel.close"))
                     .accessibilityLabel(L10n.text("panel.close"))
             }
@@ -67,6 +68,10 @@ struct WorkspacePanelView: View {
                 Button(L10n.text("launch.batchNew")) { Task { await model.openApplications(for: model.selectedIDs, action: .newWindows) } }
                     .buttonStyle(.bordered)
                     .disabled(model.selectedIDs.isEmpty || model.isBusy)
+            }
+            HStack {
+                Spacer()
+                QuitApplicationButton()
             }
         }
         .padding(20)

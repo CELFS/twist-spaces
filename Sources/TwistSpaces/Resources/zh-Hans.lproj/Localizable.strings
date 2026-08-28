@@ -166,3 +166,8 @@
 "panel.pin" = "固定面板";
 "panel.unpin" = "取消固定面板";
 "workspace.ratioDragHint" = "拖动中间分隔线调整比例，也可聚焦预览框后使用左右方向键。";
+"action.quit" = "退出";
+"about.github" = "在 GitHub 查看";
+"about.title" = "关于";
+"about.version" = "版本";
+"about.copyright" = "© 2026 CELFS";

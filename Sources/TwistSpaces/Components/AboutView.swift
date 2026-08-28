@@ -12,6 +12,7 @@ struct AboutView: View {
 
     var body: some View {
         SettingsPage {
+            AppLogoView(size: 64)
             Text(L10n.text("app.name"))
                 .font(.title2.bold())
             HStack {
@@ -19,6 +20,7 @@ struct AboutView: View {
                 Text(verbatim: version)
             }
             .foregroundStyle(.secondary)
+            GitHubLink(showsAddress: true)
             Text(L10n.text("about.copyright"))
                 .font(.caption)
                 .foregroundStyle(.secondary)

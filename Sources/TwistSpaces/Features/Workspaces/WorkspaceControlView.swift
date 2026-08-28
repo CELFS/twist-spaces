@@ -11,10 +11,10 @@ struct WorkspaceControlView: View {
     var body: some View {
         VStack(spacing: 16) {
             HStack {
+                AppLogoView()
                 Text(L10n.text("control.title")).font(.title2.bold())
                 Spacer()
                 Button(L10n.text("control.showPanel"), action: showPanel)
-                QuitApplicationButton()
             }
             TabView(selection: $model.controlTab) {
                 VStack(alignment: .leading, spacing: 12) {
@@ -61,6 +61,10 @@ struct WorkspaceControlView: View {
             }
             if let error = model.error {
                 Text(verbatim: error).foregroundStyle(.red).font(.callout).textSelection(.enabled)
+            }
+            HStack {
+                Spacer()
+                QuitApplicationButton()
             }
         }
         .padding(24)

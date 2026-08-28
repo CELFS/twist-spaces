@@ -60,6 +60,14 @@ if [[ ! -s "$ROOT/App/Assets/AppIcon.icns" ]]; then
     exit 1
 fi
 
+# Reject incomplete UI resources before replacing the existing app bundle.
+for LOGO_RESOURCE in AppLogo.png AppLogoWhiteMask.png; do
+    if [[ ! -s "$ROOT/Sources/TwistSpaces/Resources/$LOGO_RESOURCE" ]]; then
+        printf 'Missing required logo resource: %s\n' "$LOGO_RESOURCE" >&2
+        exit 1
+    fi
+done
+
 BUILD_OPTIONS=(
     --package-path "$ROOT"
     --scratch-path "$ROOT/.build"
@@ -83,6 +91,13 @@ if [[ ! -d "$RESOURCE_BUNDLE" ]]; then
     printf 'Missing Swift resource bundle: %s\n' "$RESOURCE_BUNDLE" >&2
     exit 1
 fi
+
+for LOGO_RESOURCE in AppLogo.png AppLogoWhiteMask.png; do
+    if [[ ! -s "$RESOURCE_BUNDLE/$LOGO_RESOURCE" ]]; then
+        printf 'Required logo was not packaged: %s\n' "$LOGO_RESOURCE" >&2
+        exit 1
+    fi
+done
 
 mkdir -p "$APP_PATH/Contents/MacOS" "$APP_PATH/Contents/Resources"
 cp "$BIN_PATH/TwistSpaces" "$APP_PATH/Contents/MacOS/TwistSpaces"

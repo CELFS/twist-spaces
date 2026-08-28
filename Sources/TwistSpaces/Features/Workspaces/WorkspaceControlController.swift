@@ -9,6 +9,7 @@ final class WorkspaceControlController: NSWindowController {
         window.title = L10n.text("control.title")
         window.isReleasedWhenClosed = false
         window.contentViewController = NSHostingController(rootView: WorkspaceControlView(model: model, settings: settings, showPanel: showPanel))
+        window.addTitlebarAccessoryViewController(GitHubTitlebarAccessory())
         super.init(window: window)
     }
 
