@@ -16,6 +16,7 @@ struct WorkspacePanelView: View {
                     Image(systemName: panelSettings.isPinned ? "pin.fill" : "pin")
                         .foregroundStyle(panelSettings.isPinned ? Color.accentColor : Color.primary)
                 }
+                .focusEffectDisabled()
                 .help(L10n.text(panelSettings.isPinned ? "panel.unpin" : "panel.pin"))
                 .accessibilityLabel(L10n.text(panelSettings.isPinned ? "panel.unpin" : "panel.pin"))
                 .accessibilityAddTraits(panelSettings.isPinned ? .isSelected : [])
@@ -27,16 +28,20 @@ struct WorkspacePanelView: View {
             }
             .buttonStyle(.plain)
             GeometryReader { geometry in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        QuickLaunchSection(model: model, settings: panelSettings, availableWidth: geometry.size.width) {
-                            model.controlTab = .quickLaunch
-                            settings()
-                        }
-                        Divider()
+                VStack(alignment: .leading, spacing: 16) {
+                    QuickLaunchSection(model: model, settings: panelSettings, availableWidth: geometry.size.width) {
+                        model.controlTab = .quickLaunch
+                        settings()
+                    }
+                    .fixedSize(horizontal: false, vertical: true)
+                    Divider()
+                    // Quick Launch stays above the viewport; only combinations scroll.
+                    ScrollView {
                         if model.library.workspaces.isEmpty {
-                            Text(L10n.text("display.empty")).foregroundStyle(.secondary).frame(maxWidth: .infinity)
-                            Button(L10n.text("control.title"), action: settings).frame(maxWidth: .infinity)
+                            VStack {
+                                Text(L10n.text("display.empty")).foregroundStyle(.secondary).frame(maxWidth: .infinity)
+                                Button(L10n.text("control.title"), action: settings).frame(maxWidth: .infinity)
+                            }
                         } else {
                             LazyVStack(spacing: 8) {
                                 ForEach(model.library.workspaces) { workspace in
