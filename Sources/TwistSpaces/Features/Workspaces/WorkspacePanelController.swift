@@ -9,6 +9,9 @@ final class WorkspacePanelController: NSWindowController, NSWindowDelegate {
     var openControl: (() -> Void)?
     private let triggers = PanelTriggers()
     private var settingsObserver: AnyCancellable?
+    private var pinObserver: AnyCancellable?
+    private enum Presentation { case hidden, desktop, overlay }
+    private var presentation: Presentation = .hidden
 
     init(model: WorkspaceViewModel, settings: PanelSettings) {
         self.model = model
@@ -26,13 +29,14 @@ final class WorkspacePanelController: NSWindowController, NSWindowDelegate {
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
         panel.level = .floating
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .canJoinAllApplications]
         panel.isReleasedWhenClosed = false
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
         super.init(window: panel)
         panel.delegate = self
+        panel.onCancel = { [weak self] in self?.collapse() }
 
         let effect = PanelGlassView(frame: .zero)
         let content = NSHostingView(rootView: WorkspacePanelView(model: model, panelSettings: settings, close: { [weak self] in
@@ -59,7 +63,12 @@ final class WorkspacePanelController: NSWindowController, NSWindowDelegate {
         settingsObserver = settings.objectWillChange.receive(on: RunLoop.main).sink { [weak self] in
             guard let self else { return }
             self.triggers.configure(self.settings)
-            if self.window?.isVisible == true { self.position() }
+            if self.window?.isVisible == true { self.position(followsPointer: false) }
+        }
+        pinObserver = settings.$isPinned.dropFirst().receive(on: RunLoop.main).sink { [weak self] pinned in
+            guard let self, self.presentation != .hidden else { return }
+            if pinned { self.returnToDesktop() }
+            else if self.presentation == .desktop { self.present() }
         }
     }
 
@@ -67,28 +76,47 @@ final class WorkspacePanelController: NSWindowController, NSWindowDelegate {
     required init?(coder: NSCoder) { fatalError() }
 
     func present() {
+        presentation = .overlay
+        (window as? NSPanel)?.isFloatingPanel = true
+        window?.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .canJoinAllApplications]
+        window?.level = .floating
         position()
         window?.makeKeyAndOrderFront(nil)
     }
 
-    private func position() {
+    private func position(followsPointer: Bool = true) {
         // Use the display containing the pointer; do not move any other application's windows.
-        let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
+        let screen = followsPointer
+            ? NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
+            : window?.screen ?? NSScreen.main
         if let screen {
             window?.setFrame(PanelAppearance.frame(in: screen.visibleFrame, width: settings.width, leftSide: settings.leftSide), display: true)
         }
     }
 
     func toggle() {
-        if window?.isVisible == true { collapse() } else { present() }
+        if presentation == .overlay, window?.isVisible == true { collapse() } else { present() }
     }
 
-    func collapse() { window?.orderOut(nil) }
+    func collapse() {
+        // Set the state first: resigning key during orderOut must not restore a pinned panel.
+        presentation = .hidden
+        window?.orderOut(nil)
+    }
+
+    private func returnToDesktop() {
+        presentation = .desktop
+        (window as? NSPanel)?.isFloatingPanel = false
+        window?.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenNone]
+        // Above the desktop icons, below every normal app window. The panel reserves only its own area.
+        window?.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
+        window?.orderBack(nil)
+    }
 
     func windowDidResignKey(_ notification: Notification) {
         // Only the display panel collapses. Editing remains in the independent control window.
-        guard !settings.isPinned else { return }
-        collapse()
+        guard presentation != .hidden else { return }
+        if settings.isPinned { returnToDesktop() } else { collapse() }
     }
 
     func stop() { triggers.stop() }

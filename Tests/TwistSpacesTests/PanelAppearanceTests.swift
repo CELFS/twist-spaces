@@ -3,10 +3,15 @@ import SwiftUI
 import Testing
 @testable import TwistSpaces
 
-@MainActor private final class PanelCloseRecorder: NSWindow {
+@MainActor private final class PanelCloseRecorder: NSPanel {
     var collapseCount = 0
-    override var isVisible: Bool { true }
-    override func orderOut(_ sender: Any?) { collapseCount += 1 }
+    var recordedVisible = false
+    var frontCount = 0
+    var desktopCount = 0
+    override var isVisible: Bool { recordedVisible }
+    override func makeKeyAndOrderFront(_ sender: Any?) { recordedVisible = true; frontCount += 1 }
+    override func orderBack(_ sender: Any?) { recordedVisible = true; desktopCount += 1 }
+    override func orderOut(_ sender: Any?) { recordedVisible = false; collapseCount += 1 }
 }
 
 @MainActor private final class ControlWindowPresentationRecorder: NSWindow {
@@ -48,7 +53,7 @@ import Testing
     #expect(window.frame == firstFrame)
 }
 
-@Test @MainActor func pinnedPanelOnlySuppressesAutomaticCollapse() throws {
+@Test @MainActor func pinnedPanelReturnsToDesktopAndCanBeTemporarilyRevealed() async throws {
     let suite = "local.twist-spaces.tests.\(ProcessInfo.processInfo.globallyUniqueString)"
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
@@ -58,22 +63,71 @@ import Testing
     let model = WorkspaceViewModel(store: WorkspaceStore(url: directory.appendingPathComponent("workspaces.json")), catalog: { [] })
     let controller = WorkspacePanelController(model: model, settings: settings)
     defer { controller.stop() }
+    let displayPanel = try #require(controller.window as? WorkspaceDisplayPanel)
     let window = PanelCloseRecorder(contentRect: .zero, styleMask: .borderless, backing: .buffered, defer: false)
     controller.window = window
     let notification = Notification(name: NSWindow.didResignKeyNotification, object: window)
+    controller.present()
+    #expect(window.level == .floating)
     controller.windowDidResignKey(notification)
     #expect(window.collapseCount == 1)
+    #expect(!window.isVisible)
+
+    controller.present()
     settings.isPinned = true
+    try await Task.sleep(for: .milliseconds(30))
+    #expect(window.level.rawValue == Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
+    #expect(window.level.rawValue < NSWindow.Level.normal.rawValue)
+    #expect(!window.isFloatingPanel)
+    #expect(window.collectionBehavior.contains(.stationary))
+    #expect(!window.collectionBehavior.contains(.fullScreenAuxiliary))
+    #expect(!window.collectionBehavior.contains(.canJoinAllApplications))
+    #expect(window.isVisible)
+
+    // The menu/shortcut raises a desktop resident instead of treating it as an open overlay to hide.
+    let previousFrontCount = window.frontCount
+    controller.toggle()
+    #expect(window.frontCount == previousFrontCount + 1)
+    #expect(window.level == .floating)
+    #expect(window.isFloatingPanel)
+    #expect(window.collectionBehavior.contains(.fullScreenAuxiliary))
+    #expect(window.collectionBehavior.contains(.canJoinAllApplications))
     controller.windowDidResignKey(notification)
     #expect(window.collapseCount == 1)
+    #expect(window.level.rawValue < NSWindow.Level.normal.rawValue)
+    #expect(window.isVisible)
+
+    // The edge trigger uses present(), including when the pinned desktop panel is already visible.
+    controller.present()
+    #expect(window.level == .floating)
+    controller.windowDidResignKey(notification)
+    #expect(window.level.rawValue < NSWindow.Level.normal.rawValue)
+
     controller.collapse()
+    let desktopCount = window.desktopCount
+    controller.windowDidResignKey(notification)
+    #expect(window.desktopCount == desktopCount)
+    #expect(!window.isVisible)
     controller.toggle()
-    #expect(window.collapseCount == 3)
+    #expect(window.isVisible)
+    #expect(window.level == .floating)
     #expect(settings.isPinned)
+
+    displayPanel.cancelOperation(nil)
+    controller.windowDidResignKey(notification)
+    #expect(!window.isVisible)
+    #expect(settings.isPinned)
+
+    controller.present()
+    controller.windowDidResignKey(notification)
     settings.isPinned = false
+    try await Task.sleep(for: .milliseconds(30))
+    #expect(window.level == .floating)
     controller.windowDidResignKey(notification)
     #expect(window.collapseCount == 4)
     settings.isPinned = true
+    try await Task.sleep(for: .milliseconds(30))
+    #expect(!window.isVisible)
     #expect(!PanelSettings(defaults: defaults).isPinned)
 }
 
