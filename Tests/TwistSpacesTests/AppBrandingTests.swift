@@ -6,7 +6,7 @@ import Testing
 @Test @MainActor func brandingCopyAndRepositoryAreAvailableInBothLanguages() {
     #expect(L10n.text("action.quit", language: .english) == "Quit")
     #expect(L10n.text("action.quit", language: .simplifiedChinese) == "退出")
-    for key in ["about.title", "about.version", "about.copyright", "about.github"] {
+    for key in ["about.title", "about.version", "about.copyright", "about.github", "control.layoutPanel"] {
         for language in [AppLanguage.english, .simplifiedChinese] {
             #expect(L10n.text(key, language: language) != key)
         }
@@ -79,6 +79,11 @@ import Testing
     for width in [801.0, 920.0] {
         try check(WorkspaceControlView(model: model, settings: settings, showPanel: {}),
                   width: width, height: 540, name: "control-\(Int(width))")
+    }
+    for scheme in [ColorScheme.light, .dark] {
+        try check(WorkspaceControlNavigationButton(titleKey: "control.layoutPanel", symbol: "sidebar.right",
+                                                   isSelected: false, showsArrow: true, action: {})
+            .environment(\.colorScheme, scheme), width: 160, height: 34, name: "panel-shortcut-\(scheme)")
     }
     try check(HStack(spacing: 24) {
         AppLogoView(size: 64)

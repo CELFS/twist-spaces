@@ -4,6 +4,7 @@ struct WorkspaceControlNavigationButton: View {
     let titleKey: String
     let symbol: String
     let isSelected: Bool
+    var showsArrow = false
     let action: () -> Void
     @State private var hovered = false
 
@@ -15,6 +16,14 @@ struct WorkspaceControlNavigationButton: View {
                     .foregroundStyle(.white)
                 Text(L10n.text(titleKey))
                     .foregroundStyle(isSelected ? Color.white : Color.primary)
+                if showsArrow {
+                    Spacer(minLength: 0)
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(.primary)
+                        .frame(width: 18)
+                        .accessibilityHidden(true)
+                }
             }
             .frame(maxWidth: .infinity, minHeight: 34, alignment: .leading)
             .padding(.horizontal, 10)

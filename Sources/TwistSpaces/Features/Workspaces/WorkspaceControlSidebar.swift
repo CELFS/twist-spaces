@@ -32,8 +32,8 @@ struct WorkspaceControlSidebar: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(spacing: 0) {
-                WorkspaceControlNavigationButton(titleKey: "control.showPanel", symbol: "sidebar.right",
-                                                 isSelected: false, action: showPanel)
+                WorkspaceControlNavigationButton(titleKey: "control.layoutPanel", symbol: "sidebar.right",
+                                                 isSelected: false, showsArrow: true, action: showPanel)
                 ForEach([WorkspaceControlTab.combinations, .quickLaunch], id: \.self) { tab in
                     WorkspaceControlNavigationButton(titleKey: tab.titleKey, symbol: tab.symbol, isSelected: selection == tab) {
                         selection = tab

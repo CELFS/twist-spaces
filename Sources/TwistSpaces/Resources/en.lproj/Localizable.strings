@@ -171,3 +171,4 @@
 "workspace.ratioDragHint" = "Drag the divider to adjust the split, or focus the preview and use the left and right arrow keys.";
 "action.quit" = "Quit";
 "about.github" = "View on GitHub";
+"control.layoutPanel" = "Layout Panel";
