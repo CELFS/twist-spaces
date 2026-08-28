@@ -163,3 +163,6 @@
 "quickLaunch.sourceGroup" = "From combinations";
 "quickLaunch.sourceManual" = "Manually added";
 "quickLaunch.sourceBoth" = "From combinations · Manually added";
+"about.title" = "About";
+"about.version" = "Version";
+"about.copyright" = "© 2026 CELFS";

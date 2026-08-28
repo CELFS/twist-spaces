@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum WorkspaceControlTab: Hashable { case combinations, quickLaunch, display, language }
+enum WorkspaceControlTab: Hashable { case combinations, quickLaunch, display, language, about }
 
 struct WorkspaceControlView: View {
     @ObservedObject var model: WorkspaceViewModel
@@ -55,6 +55,9 @@ struct WorkspaceControlView: View {
                     }
                 }
                 .tabItem { Text(L10n.text("language.title")) }.tag(WorkspaceControlTab.language)
+
+                AboutView()
+                    .tabItem { Text(L10n.text("about.title")) }.tag(WorkspaceControlTab.about)
             }
             if let error = model.error {
                 Text(verbatim: error).foregroundStyle(.red).font(.callout).textSelection(.enabled)
