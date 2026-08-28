@@ -5,11 +5,19 @@ import OSLog
 // Native fullscreen tiling only: no AX position/size writes and no private Spaces APIs.
 extension NewWindowService {
     func applyNativeSplit(left: NativeWindowToken, right: NativeWindowToken, percentage: Int) async throws -> Int {
+        let started = ContinuousClock.now
+        var phase = "identify left"
+        defer {
+            #if DEBUG
+            Logger(subsystem: "local.twist-spaces", category: "NativeSplit").notice("Split exit phase=\(phase, privacy: .public) elapsed=\(String(describing: started.duration(to: .now)), privacy: .public)")
+            #endif
+        }
         guard AccessibilityPermission.isTrusted else { throw NewWindowError.permissionRequired }
         guard !splitInProgress, (10...90).contains(percentage) else { throw NativeSplitError.cancelled }
         splitInProgress = true
         defer { splitInProgress = false }
         let first = try await identifiedWindow(left)
+        phase = "identify right"
         let second = try await identifiedWindow(right)
         guard !CFEqual(first.element, second.element) else { throw NativeSplitError.ambiguousWindow }
         let leftID = try windowID(first)
@@ -23,14 +31,18 @@ extension NewWindowService {
             guard !NativeAX.bool(first.element, "AXFullScreen"), !NativeAX.bool(second.element, "AXFullScreen") else {
                 throw NativeSplitError.alreadyFullscreen
             }
+            phase = "focus left"
             try await focus(first)
             let visibleBeforeTiling = Set(windowEntries(onScreen: true).compactMap {
                 ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value
             })
+            phase = "enter left tile"
             try await enterLeftTile(first)
+            phase = "select partner"
             try await selectPartner(second, windowID: rightID, beside: first, leftID: leftID,
                                     visibleBeforeTiling: visibleBeforeTiling)
         }
+        phase = "confirm pair"
         for _ in 0..<30 {
             try Task.checkCancellation()
             if let pair = confirmedPair(first, second, leftID: leftID, rightID: rightID) {
@@ -38,6 +50,7 @@ extension NewWindowService {
                 Logger(subsystem: "local.twist-spaces", category: "NativeSplit").notice("Pair confirmed left=\(leftID) right=\(rightID) bothFullscreen=true sameDisplay=true actual=\(pair.percentage) requested=\(percentage)")
                 #endif
                 if abs(pair.percentage - percentage) <= 1 { return pair.percentage }
+                phase = "adjust ratio"
                 try await dragDivider(pair, percentage: percentage)
                 var actual: Int?
                 for _ in 0..<15 {
@@ -68,7 +81,10 @@ extension NewWindowService {
         _ = AXUIElementSetAttributeValue(window.element, kAXMainAttribute as CFString, kCFBooleanTrue)
         _ = AXUIElementSetAttributeValue(window.element, kAXFocusedAttribute as CFString, kCFBooleanTrue)
         _ = AXUIElementPerformAction(window.element, kAXRaiseAction as CFString)
-        for _ in 0..<10 {
+        for attempt in 0..<10 {
+            #if DEBUG
+            Logger(subsystem: "local.twist-spaces", category: "NativeSplit").notice("Focus pid=\(pid) attempt=\(attempt) frontmost=\(NativeAX.bool(app, kAXFrontmostAttribute)) focusedMatches=\(NativeAX.element(app, kAXFocusedWindowAttribute).map { CFEqual($0, window.element) } == true)")
+            #endif
             // An app can remember a focused window while another app still owns the menu bar.
             if NativeAX.bool(app, kAXFrontmostAttribute),
                let focused = NativeAX.element(app, kAXFocusedWindowAttribute), CFEqual(focused, window.element) { return }
@@ -78,14 +94,22 @@ extension NewWindowService {
     }
 
     private func enterLeftTile(_ window: CapturedWindow) async throws {
+        var phase = "menu bar"
+        defer {
+            #if DEBUG
+            Logger(subsystem: "local.twist-spaces", category: "NativeSplit").notice("Tile menu pid=\(window.application.pid) phase=\(phase, privacy: .public)")
+            #endif
+        }
         let app = AXUIElementCreateApplication(window.application.pid)
         _ = AXUIElementSetMessagingTimeout(app, 0.5)
         guard let bar = NativeAX.element(app, kAXMenuBarAttribute) else { throw NativeSplitError.menuUnavailable }
         let menus = NativeAX.children(bar).filter {
             ["Window", "窗口", "視窗"].contains(NativeAX.string($0, kAXTitleAttribute) ?? "")
         }
+        phase = "window menu count=\(menus.count)"
         guard menus.count == 1 else { throw NativeSplitError.menuUnavailable }
         let menu = menus[0]
+        phase = "press window menu"
         try NativeAX.press(menu)
         var commandSent = false
         defer {
@@ -93,7 +117,8 @@ extension NewWindowService {
             if !commandSent { _ = AXUIElementPerformAction(menu, kAXCancelAction as CFString) }
         }
         var submenuOpened = false
-        for _ in 0..<12 {
+        for attempt in 0..<12 {
+            phase = "read commands attempt=\(attempt)"
             try await Task.sleep(for: .milliseconds(100))
             // Opening an Electron/native submenu validates and can replace its AX children.
             // Read fresh nodes and match actionable menu items, not identically titled containers.
@@ -102,11 +127,13 @@ extension NewWindowService {
                 NativeAX.string($0.element, kAXRoleAttribute) == kAXMenuItemRole
                     && NativeSplitMenu.isTileMenu(NativeAX.string($0.element, kAXTitleAttribute) ?? "")
             }
+            phase += " nodes=\(nodes.count) parents=\(parents.count)"
             guard parents.count <= 1 else { throw NativeSplitError.menuUnavailable }
             if !submenuOpened, let parent = parents.first {
                 // AXPress executes a menu item; submenu disclosure is a pointer hover.
                 // Pressing the parent can dismiss the native menu before its children validate.
                 try NativeAX.revealSubmenu(parent.element)
+                phase += " submenu revealed"
                 submenuOpened = true
                 continue
             }
@@ -115,6 +142,7 @@ extension NewWindowService {
                     && NativeSplitMenu.isLeftCommand(NativeAX.string($0.element, kAXTitleAttribute) ?? "", ancestors: $0.path)
                     && NativeAX.bool($0.element, kAXEnabledAttribute) && NativeAX.supportsPress($0.element)
             }
+            phase += " enabledCommands=\(candidates.count)"
             guard candidates.count <= 1 else { throw NativeSplitError.menuUnavailable }
             guard let command = candidates.first else { continue }
             guard NativeAX.bool(app, kAXFrontmostAttribute),
@@ -122,6 +150,7 @@ extension NewWindowService {
                 throw NativeSplitError.focusFailed
             }
             try NativeAX.press(command.element)
+            phase = "left tile command sent"
             commandSent = true
             return
         }

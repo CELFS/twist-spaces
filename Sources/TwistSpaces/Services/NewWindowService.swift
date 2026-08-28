@@ -120,17 +120,37 @@ actor NewWindowService {
     }
 
     func captureFocusedWindow(in application: ApplicationSnapshot, requireSingle: Bool) async throws -> NativeWindowToken {
+        let started = ContinuousClock.now
+        var phase = "inspect"
+        defer {
+            #if DEBUG
+            Logger(subsystem: "local.twist-spaces", category: "WindowOpening").notice("Capture pid=\(application.pid) phase=\(phase, privacy: .public) elapsed=\(String(describing: started.duration(to: .now)), privacy: .public)")
+            #endif
+        }
         guard AccessibilityPermission.isTrusted else { throw NewWindowError.permissionRequired }
         _ = await inspector.inspect(application)
         let app = AXUIElementCreateApplication(application.pid)
         _ = AXUIElementSetMessagingTimeout(app, 0.5)
-        for _ in 0..<20 {
+        for attempt in 0..<20 {
+            phase = "read attempt=\(attempt)"
             guard await isCurrent(application) else { throw NativeSplitError.windowMissing }
             let current = try windows(of: app)
+            phase = "observe attempt=\(attempt) count=\(current.count)"
+            #if DEBUG
+            let focused = NativeAX.element(app, kAXFocusedWindowAttribute)
+            let cgCount = windowServerIDs(for: application.pid).count
+            Logger(subsystem: "local.twist-spaces", category: "WindowOpening").notice("Capture sample pid=\(application.pid) attempt=\(attempt) standardWindows=\(current.count) cgWindows=\(cgCount) focused=\(focused != nil) focusedRole=\(focused.flatMap { NativeAX.string($0, kAXRoleAttribute) } ?? "nil", privacy: .public) focusedSubrole=\(focused.flatMap { NativeAX.string($0, kAXSubroleAttribute) } ?? "nil", privacy: .public)")
+            #endif
             if requireSingle, current.count > 1 { throw NativeSplitError.ambiguousWindow }
             if !requireSingle, let focused = NativeAX.element(app, kAXFocusedWindowAttribute),
-               current.contains(where: { CFEqual($0, focused) }) { return capture(focused, application: application) }
-            if current.count == 1 { return capture(current[0], application: application) }
+               current.contains(where: { CFEqual($0, focused) }) {
+                phase += " selected=focused"
+                return capture(focused, application: application)
+            }
+            if current.count == 1 {
+                phase += " selected=single"
+                return capture(current[0], application: application)
+            }
             try await Task.sleep(for: .milliseconds(100))
         }
         throw NativeSplitError.ambiguousWindow
@@ -171,11 +191,23 @@ actor NewWindowService {
 
     private func windows(of app: AXUIElement) throws -> [AXUIElement] {
         var raw: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &raw) == .success,
-              let windows = raw as? [AXUIElement] else { throw NewWindowError.readFailed }
-        return windows.filter {
+        let result = AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &raw)
+        guard result == .success, let windows = raw as? [AXUIElement] else {
+            #if DEBUG
+            Logger(subsystem: "local.twist-spaces", category: "WindowOpening").notice("AXWindows read failed code=\(result.rawValue) hasValue=\(raw != nil)")
+            #endif
+            throw NewWindowError.readFailed
+        }
+        let standard = windows.filter {
             NewWindowCommand.isStandardWindow(role: string(kAXRoleAttribute, of: $0), subrole: string(kAXSubroleAttribute, of: $0))
         }
+        #if DEBUG
+        if standard.isEmpty {
+            let roles = windows.map { "\(NativeAX.string($0, kAXRoleAttribute) ?? "nil")/\(NativeAX.string($0, kAXSubroleAttribute) ?? "nil")" }.joined(separator: ",")
+            Logger(subsystem: "local.twist-spaces", category: "WindowOpening").notice("AXWindows empty standard list rawCount=\(windows.count) roles=\(roles, privacy: .public)")
+        }
+        #endif
+        return standard
     }
 
     private func newWindowItem(in app: AXUIElement) throws -> AXUIElement {
