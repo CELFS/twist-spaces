@@ -9,7 +9,6 @@ final class WorkspaceControlController: NSWindowController {
         window.title = L10n.text("control.title")
         window.isReleasedWhenClosed = false
         window.contentViewController = NSHostingController(rootView: WorkspaceControlView(model: model, settings: settings, showPanel: showPanel))
-        window.center()
         super.init(window: window)
     }
 
@@ -17,8 +16,12 @@ final class WorkspaceControlController: NSWindowController {
     required init?(coder: NSCoder) { fatalError() }
 
     func present() {
-        if window?.isMiniaturized == true { window?.deminiaturize(nil) }
-        window?.makeKeyAndOrderFront(nil)
+        guard let window else { return }
+        if window.isMiniaturized { window.deminiaturize(nil) }
+        window.makeKeyAndOrderFront(nil)
+        // Center after SwiftUI resolves the displayed window size, including on later openings.
+        window.contentView?.layoutSubtreeIfNeeded()
+        window.center()
         NSApplication.shared.activate()
     }
 }

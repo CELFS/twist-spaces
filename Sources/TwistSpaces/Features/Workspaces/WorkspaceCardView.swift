@@ -14,8 +14,10 @@ struct WorkspaceCardView: View {
                         .foregroundStyle(model.selectedIDs.contains(workspace.id) ? Color.accentColor : Color.secondary)
                         .frame(width: 32, height: 36)
                     VStack(alignment: .leading, spacing: 7) {
-                        HStack {
+                        HStack(spacing: 6) {
                             Text(verbatim: workspace.name).font(.headline).lineLimit(1)
+                                .layoutPriority(1).help(workspace.name)
+                            ApplicationPairView(workspace: workspace, compact: true)
                             Spacer(minLength: 0)
                             if let result = model.results[workspace.id] {
                                 Image(systemName: result.succeeded ? "checkmark" : "exclamationmark.circle")
@@ -23,7 +25,6 @@ struct WorkspaceCardView: View {
                                     .help(result.message)
                             }
                         }
-                        ApplicationPairView(workspace: workspace)
                         SplitRatioPreview(leftPercentage: workspace.leftPercentage,
                                           leftApplication: workspace.left.application, rightApplication: workspace.right.application)
                         if let result = model.results[workspace.id], !result.succeeded || result.hasMatchedWindows {

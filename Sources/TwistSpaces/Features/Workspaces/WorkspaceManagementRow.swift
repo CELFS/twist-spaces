@@ -5,22 +5,25 @@ struct WorkspaceManagementRow: View {
     @ObservedObject var model: WorkspaceViewModel
 
     var body: some View {
-        HStack {
+        HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 6) {
-                Text(verbatim: workspace.name).font(.headline)
+                Text(verbatim: workspace.name).font(.headline).lineLimit(1).help(workspace.name)
                 ApplicationPairView(workspace: workspace)
-                SplitRatioPreview(leftPercentage: workspace.leftPercentage,
-                                  leftApplication: workspace.left.application, rightApplication: workspace.right.application)
                 if let result = model.results[workspace.id] {
                     Text(verbatim: result.message).font(.caption)
                         .foregroundStyle(result.succeeded ? Color.secondary : .orange)
                 }
             }
-            Spacer()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            SplitScreenPreview(leftPercentage: Double(workspace.leftPercentage),
+                               leftApplication: workspace.left.application, rightApplication: workspace.right.application)
+                .frame(width: 112, height: 63)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(String(format: L10n.text("workspace.ratioValue"), workspace.leftPercentage, 100 - workspace.leftPercentage))
             WorkspaceActionButtons(workspaceID: workspace.id, model: model)
             Button(L10n.text("workspace.edit")) { model.edit(workspace) }
                 .disabled(model.isBusy || !model.canSave)
         }
-        .padding(.vertical, 12)
+        .padding(.vertical, 8)
     }
 }

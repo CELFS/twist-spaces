@@ -9,6 +9,45 @@ import Testing
     override func orderOut(_ sender: Any?) { collapseCount += 1 }
 }
 
+@MainActor private final class ControlWindowPresentationRecorder: NSWindow {
+    var displayedSize: CGSize?
+    var centeredSizes: [CGSize] = []
+
+    override func makeKeyAndOrderFront(_ sender: Any?) {
+        if let displayedSize { setContentSize(displayedSize) }
+    }
+
+    override func center() {
+        centeredSizes.append(frame.size)
+        super.center()
+    }
+}
+
+@Test @MainActor func controlWindowCentersAfterDisplayAndOnEveryReopening() throws {
+    let suite = "local.twist-spaces.tests.\(ProcessInfo.processInfo.globallyUniqueString)"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        .appendingPathComponent(".build/control-position-\(ProcessInfo.processInfo.globallyUniqueString)")
+    let model = WorkspaceViewModel(store: WorkspaceStore(url: directory.appendingPathComponent("workspaces.json")), catalog: { [] })
+    let controller = WorkspaceControlController(model: model, settings: PanelSettings(defaults: defaults), showPanel: {})
+    let window = ControlWindowPresentationRecorder(contentRect: CGRect(x: 0, y: 0, width: 740, height: 540),
+                                                  styleMask: [.titled, .closable], backing: .buffered, defer: false)
+    controller.window = window
+    window.displayedSize = CGSize(width: 620, height: 420)
+    controller.present()
+    let firstFrame = window.frame
+    #expect(window.centeredSizes == [firstFrame.size])
+    #expect(window.contentRect(forFrameRect: firstFrame).width == 620)
+    let screen = try #require(window.screen)
+    #expect(abs(firstFrame.midX - screen.visibleFrame.midX) < 1)
+    window.displayedSize = nil
+    window.setFrameOrigin(CGPoint(x: firstFrame.minX + 100, y: firstFrame.minY))
+    controller.present()
+    #expect(window.centeredSizes.count == 2)
+    #expect(window.frame == firstFrame)
+}
+
 @Test @MainActor func pinnedPanelOnlySuppressesAutomaticCollapse() throws {
     let suite = "local.twist-spaces.tests.\(ProcessInfo.processInfo.globallyUniqueString)"
     let defaults = try #require(UserDefaults(suiteName: suite))
@@ -253,6 +292,19 @@ import Testing
     try preview(WorkspacePanelView(model: model, panelSettings: settings, close: {}, settings: {})
         .frame(width: 460, height: 700).background(Color(nsColor: .windowBackgroundColor)), name: "panel")
     model.controlTab = .combinations
+    for width in [572.0, 692.0] {
+        for percentage in [10, 50, 90] {
+            var rowWorkspace = group
+            rowWorkspace.leftPercentage = percentage
+            let row = WorkspaceManagementRow(workspace: rowWorkspace, model: model)
+                .frame(width: width).fixedSize(horizontal: false, vertical: true)
+            let host = NSHostingView(rootView: row)
+            #expect(abs(host.fittingSize.width - width) < 0.001)
+            #expect(host.fittingSize.height <= 90)
+            try preview(row.padding(16).background(Color(nsColor: .windowBackgroundColor)),
+                        name: "combination-row-\(Int(width))-\(percentage)")
+        }
+    }
     try preview(WorkspaceControlView(model: model, settings: settings, showPanel: {})
         .frame(width: 620, height: 540).background(Color(nsColor: .windowBackgroundColor)), name: "combinations")
     model.controlTab = .quickLaunch
