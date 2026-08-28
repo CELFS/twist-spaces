@@ -14,6 +14,7 @@ struct WorkspacePanelView: View {
                 Text(L10n.text("workspace.title")).font(.headline)
                 Spacer()
                 GitHubLink()
+                    .focusEffectDisabled()
                 Button { panelSettings.isPinned.toggle() } label: {
                     Image(systemName: panelSettings.isPinned ? "pin.fill" : "pin")
                         .foregroundStyle(panelSettings.isPinned ? Color.accentColor : Color.primary)

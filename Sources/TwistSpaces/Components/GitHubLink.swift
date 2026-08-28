@@ -5,16 +5,23 @@ struct GitHubLink: View {
     static let repositoryAddress = "github.com/CELFS/twist-spaces"
     var showsAddress = false
     @ObservedObject private var language = LanguageSettings.shared
+    @State private var hovered = false
 
     var body: some View {
         Link(destination: Self.repositoryURL) {
             HStack(spacing: 6) {
                 GitHubMark().frame(width: 16, height: 16)
-                if showsAddress { Text(verbatim: Self.repositoryAddress) }
+                if showsAddress {
+                    Text(verbatim: Self.repositoryAddress)
+                        .underline(hovered)
+                }
             }
+            .foregroundStyle(hovered ? Color.accentColor : Color.primary)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .onHover { hovered = $0 }
+        .animation(.easeInOut(duration: 0.12), value: hovered)
         .help(L10n.text("about.github", language: language.selection))
         .accessibilityLabel(L10n.text("about.github", language: language.selection))
     }

@@ -11,7 +11,7 @@ struct AboutView: View {
     }
 
     var body: some View {
-        SettingsPage {
+        VStack(spacing: 16) {
             AppLogoView(size: 64)
             Text(L10n.text("app.name"))
                 .font(.title2.bold())
@@ -25,5 +25,8 @@ struct AboutView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
+        .multilineTextAlignment(.center)
+        .padding(.vertical, 24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 }

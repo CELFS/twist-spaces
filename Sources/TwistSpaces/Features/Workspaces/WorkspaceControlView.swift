@@ -9,12 +9,13 @@ struct WorkspaceControlView: View {
     let showPanel: () -> Void
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 0) {
             HStack {
                 Text(L10n.text("control.title")).font(.title2.bold())
                 Spacer()
-                Button(L10n.text("control.showPanel"), action: showPanel)
+                ShowPanelButton(title: L10n.text("control.showPanel"), action: showPanel)
             }
+            .padding(.bottom, 8)
             TabView(selection: $model.controlTab) {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
@@ -35,9 +36,8 @@ struct WorkspaceControlView: View {
                             }
                         }
                     }
-                    Text(L10n.text("control.layoutStatus")).font(.caption).foregroundStyle(.secondary)
                 }
-                .padding(.vertical, 16)
+                .padding(.top, 8)
                 .tabItem { Text(L10n.text("control.combinations")) }.tag(WorkspaceControlTab.combinations)
 
                 QuickLaunchManagementView(model: model, settings: settings)
@@ -60,13 +60,16 @@ struct WorkspaceControlView: View {
             }
             if let error = model.error {
                 Text(verbatim: error).foregroundStyle(.red).font(.callout).textSelection(.enabled)
+                    .padding(.top, 16)
             }
             HStack {
                 Spacer()
                 QuitApplicationButton()
             }
+            .padding(.top, 4)
         }
-        .padding(24)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 8)
         .frame(minWidth: 620, minHeight: 420)
         .id(language.selection)
         .sheet(item: $model.draft) { draft in
