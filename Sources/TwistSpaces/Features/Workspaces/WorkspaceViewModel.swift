@@ -108,6 +108,22 @@ final class WorkspaceViewModel: ObservableObject {
         } catch { draft.error = error.localizedDescription }
     }
 
+    func deleteWorkspace(_ workspace: Workspace) {
+        guard canSave, !isBusy, library.workspaces.contains(where: { $0.id == workspace.id }) else { return }
+        var updated = library
+        updated.workspaces.removeAll { $0.id == workspace.id }
+        do {
+            try store.save(updated)
+            library = updated
+            selectedIDs.remove(workspace.id)
+            results[workspace.id] = nil
+            if draft?.id == workspace.id { draft = nil }
+            error = nil
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
     func openApplications(for ids: Set<Int>, action: WorkspaceOpenAction = .activate,
                           target: NativeDisplayTarget? = nil) async {
         guard !isBusy else { return }

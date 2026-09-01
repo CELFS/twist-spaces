@@ -96,6 +96,64 @@ private let assistantApp = SavedApplication(name: "Assistant", bundleIdentifier:
     #expect(try store.load().workspaces.first?.leftPercentage == 65)
 }
 
+@Test @MainActor func deletingACombinationPersistsBeforeCleaningItsUIState() async throws {
+    let directory = fixtureDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let browser = SavedApplication(name: "Browser", bundleIdentifier: "test.browser", bundlePath: "/Applications/Browser.app")
+    let first = Workspace(id: 1, name: "First", projectPath: "", left: editorApp.windowRecord, right: assistantApp.windowRecord)
+    let second = Workspace(id: 2, name: "Second", projectPath: "", left: editorApp.windowRecord, right: browser.windowRecord)
+    var quickLaunch = QuickLaunchConfiguration()
+    quickLaunch.add(assistantApp)
+    quickLaunch.orderedApplicationIDs = [assistantApp.id]
+    let store = WorkspaceStore(url: directory.appendingPathComponent("workspaces.json"))
+    try store.save(WorkspaceLibrary(nextID: 3, workspaces: [first, second], quickLaunch: quickLaunch))
+    let launcher = WorkspaceLauncher(resolve: { URL(fileURLWithPath: $0.bundlePath) }, launch: { _ in })
+    let model = WorkspaceViewModel(store: store, launcher: launcher, catalog: { [] })
+    model.toggleSelection(first.id)
+    await model.openApplications(for: [first.id])
+    model.edit(first)
+    #expect(model.results[first.id] == .opened)
+    #expect(model.draft?.id == first.id)
+
+    model.deleteWorkspace(first)
+
+    #expect(model.library.workspaces == [second])
+    #expect(model.library.nextID == 3)
+    #expect(model.library.quickLaunch == quickLaunch)
+    #expect(model.quickLaunchApplications == [assistantApp, editorApp, browser])
+    #expect(!model.selectedIDs.contains(first.id))
+    #expect(model.results[first.id] == nil)
+    #expect(model.draft == nil)
+    #expect(model.error == nil)
+    #expect(try store.load() == model.library)
+}
+
+@Test @MainActor func failedCombinationDeletionKeepsTheStoredAndInMemoryCombination() async throws {
+    let directory = fixtureDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let parent = directory.appendingPathComponent("store")
+    let store = WorkspaceStore(url: parent.appendingPathComponent("workspaces.json"))
+    let workspace = Workspace(id: 1, name: "Keep me", projectPath: "", left: editorApp.windowRecord,
+                              right: assistantApp.windowRecord)
+    try store.save(WorkspaceLibrary(nextID: 2, workspaces: [workspace]))
+    let launcher = WorkspaceLauncher(resolve: { URL(fileURLWithPath: $0.bundlePath) }, launch: { _ in })
+    let model = WorkspaceViewModel(store: store, launcher: launcher, catalog: { [] })
+    model.toggleSelection(workspace.id)
+    await model.openApplications(for: [workspace.id])
+    model.edit(workspace)
+    try FileManager.default.removeItem(at: parent)
+    try Data("not a directory".utf8).write(to: parent)
+
+    model.deleteWorkspace(workspace)
+
+    #expect(model.library.workspaces == [workspace])
+    #expect(model.selectedIDs.contains(workspace.id))
+    #expect(model.results[workspace.id] == .opened)
+    #expect(model.draft?.id == workspace.id)
+    #expect(model.error != nil)
+    #expect(try Data(contentsOf: parent) == Data("not a directory".utf8))
+}
+
 @Test @MainActor func savingFailureKeepsDraftAndExistingInMemoryLibrary() throws {
     let directory = fixtureDirectory()
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

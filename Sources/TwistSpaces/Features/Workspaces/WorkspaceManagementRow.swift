@@ -3,6 +3,7 @@ import SwiftUI
 struct WorkspaceManagementRow: View {
     let workspace: Workspace
     @ObservedObject var model: WorkspaceViewModel
+    @State private var confirmsDeletion = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -23,6 +24,22 @@ struct WorkspaceManagementRow: View {
             WorkspaceActionButtons(workspaceID: workspace.id, model: model)
             Button(L10n.text("workspace.edit")) { model.edit(workspace) }
                 .disabled(model.isBusy || !model.canSave)
+            IconActionButton(titleKey: "workspace.delete", symbol: "trash") {
+                confirmsDeletion = true
+            }
+            .disabled(model.isBusy || !model.canSave)
+            .confirmationDialog(
+                String(format: L10n.text("workspace.deleteTitle"), workspace.name),
+                isPresented: $confirmsDeletion,
+                titleVisibility: .visible
+            ) {
+                Button(L10n.text("workspace.delete"), role: .destructive) {
+                    model.deleteWorkspace(workspace)
+                }
+                Button(L10n.text("workspace.cancel"), role: .cancel) {}
+            } message: {
+                Text(L10n.text("workspace.deleteMessage"))
+            }
         }
         .padding(.vertical, 8)
     }
