@@ -135,7 +135,7 @@ private func group(_ id: Int) -> Workspace {
     var activated = 0
     var split = 0
     let launcher = WorkspaceLauncher(resolve: { URL(fileURLWithPath: $0.bundlePath) }, launch: { _ in activated += 1 },
-                                     createWindow: { created.append($0) }, openWorkspace: { _, _, _ in
+                                     createWindow: { created.append($0) }, openWorkspace: { _, _, _, _ in
         split += 1
         return .splitApplied(50)
     })

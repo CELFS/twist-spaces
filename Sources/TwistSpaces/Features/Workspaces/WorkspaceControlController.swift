@@ -9,7 +9,12 @@ final class WorkspaceControlController: NSWindowController {
             styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = L10n.text("control.title")
         window.isReleasedWhenClosed = false
-        window.contentViewController = NSHostingController(rootView: WorkspaceControlView(model: model, settings: settings, showPanel: showPanel))
+        let launchTarget = WorkspaceLaunchTargetResolver { [weak window] in
+            NativeDisplayTarget(screen: window?.screen)
+        }
+        let root = WorkspaceControlView(model: model, settings: settings, showPanel: showPanel)
+            .environment(\.workspaceLaunchTargetResolver, launchTarget)
+        window.contentViewController = NSHostingController(rootView: root)
         window.addTitlebarAccessoryViewController(ControlTitlebarAccessory(showPanel: showPanel))
         // Hosting can replace the initial content size before SwiftUI's first layout.
         window.setContentSize(contentRect.size)

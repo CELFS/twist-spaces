@@ -39,12 +39,16 @@ final class WorkspacePanelController: NSWindowController, NSWindowDelegate {
         panel.onCancel = { [weak self] in self?.collapse() }
 
         let effect = PanelGlassView(frame: .zero)
-        let content = NSHostingView(rootView: WorkspacePanelView(model: model, panelSettings: settings, close: { [weak self] in
+        let launchTarget = WorkspaceLaunchTargetResolver { [weak panel] in
+            NativeDisplayTarget(screen: panel?.screen)
+        }
+        let root = WorkspacePanelView(model: model, panelSettings: settings, close: { [weak self] in
             self?.collapse()
         }, settings: { [weak self] in
             self?.collapse()
             self?.openControl?()
-        }))
+        }).environment(\.workspaceLaunchTargetResolver, launchTarget)
+        let content = NSHostingView(rootView: root)
         content.sizingOptions = []
         content.translatesAutoresizingMaskIntoConstraints = false
         // Keep the background translucent without fading text, icons, or controls.

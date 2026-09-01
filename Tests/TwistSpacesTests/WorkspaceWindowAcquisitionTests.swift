@@ -60,7 +60,7 @@ import Testing
 @Test @MainActor func fullscreenMatchesAreSuccessfulWithoutClaimingSplitApplied() {
     let matches = [MatchedWindow(applicationName: "Typora", title: "Notes", isFullscreen: false),
                    MatchedWindow(applicationName: "Sourcetree", title: "Sourcetree", isFullscreen: true)]
-    let result = NativeWorkspaceOpening.preservedLayoutResult(matches)
+    let result = NativeWorkspaceOpening.preservedLayoutResult(matches, origins: [.matched, .matched])
     #expect(result == .windowsMatched(matches, .preserved))
     #expect(result?.succeeded == true)
     #expect(result?.hasMatchedWindows == true)
@@ -68,17 +68,24 @@ import Testing
     #expect(result?.message.contains("Notes") == true)
     #expect(result?.message.contains("Sourcetree") == true)
     #expect(result != .splitApplied(50))
-    #expect(NativeWorkspaceOpening.preservedLayoutResult(Array(matches.suffix(1))) == nil)
+    #expect(NativeWorkspaceOpening.preservedLayoutResult(Array(matches.suffix(1)), origins: [.matched]) == nil)
 }
 
 @Test @MainActor func ordinaryWindowsStillRequireNativePairing() {
     let matches = [MatchedWindow(applicationName: "Left", title: "", isFullscreen: false),
                    MatchedWindow(applicationName: "Right", title: "", isFullscreen: false)]
-    #expect(NativeWorkspaceOpening.preservedLayoutResult(matches) == nil)
+    #expect(NativeWorkspaceOpening.preservedLayoutResult(matches, origins: [.matched, .matched]) == nil)
     let result = WorkspaceLaunchResult.windowsMatched(matches, .failed("test-layout-error"))
     #expect(!result.succeeded)
     #expect(result.hasMatchedWindows)
     #expect(result.message.contains("Left"))
     #expect(result.message.contains("Right"))
     #expect(result.message.contains("test-layout-error"))
+}
+
+@Test @MainActor func fullscreenCreatedByThisRequestIsNotPreserved() {
+    let matches = [MatchedWindow(applicationName: "Left", title: "", isFullscreen: true),
+                   MatchedWindow(applicationName: "Right", title: "", isFullscreen: true)]
+    #expect(NativeWorkspaceOpening.preservedLayoutResult(matches, origins: [.created, .created]) == nil)
+    #expect(NativeWorkspaceOpening.preservedLayoutResult(matches, origins: [.created, .matched]) != nil)
 }

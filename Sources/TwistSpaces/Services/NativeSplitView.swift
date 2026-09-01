@@ -2,9 +2,11 @@ import AppKit
 import ApplicationServices
 import OSLog
 
-// Native fullscreen tiling only: no AX position/size writes and no private Spaces APIs.
+// Native fullscreen tiling with target-display placement for exact newly created windows only:
+// no AX size writes and no private Spaces APIs.
 extension NewWindowService {
-    func applyNativeSplit(left: NativeWindowToken, right: NativeWindowToken, percentage: Int) async throws -> Int {
+    func applyNativeSplit(left: NativeWindowToken, right: NativeWindowToken, percentage: Int,
+                          target: NativeDisplayTarget? = nil) async throws -> Int {
         let started = ContinuousClock.now
         var phase = "identify left"
         defer {
@@ -26,7 +28,27 @@ extension NewWindowService {
         Logger(subsystem: "local.twist-spaces", category: "NativeSplit").notice("Captured left pid=\(first.application.pid) id=\(leftID) right pid=\(second.application.pid) id=\(rightID) requested=\(percentage)")
         #endif
 
-        if confirmedPair(first, second, leftID: leftID, rightID: rightID) == nil {
+        let targetBounds = try target.map { target -> CGRect in
+            guard target.supportsIndependentSpaces else { throw NativeSplitError.separateSpacesDisabled }
+            guard let bounds = target.activeBounds() else { throw NativeSplitError.targetDisplayUnavailable }
+            return bounds
+        }
+        let existingPair = confirmedPair(first, second, leftID: leftID, rightID: rightID)
+        let pairIsOnTarget = existingPair.map { pair in
+            guard let targetBounds else { return true }
+            return NativeSplitGeometry.approximatelyEqual(pair.display, targetBounds)
+        } == true
+        if pairIsOnTarget, targetBounds != nil {
+            phase = "stabilize confirmed pair"
+            for window in [first, second] where window.origin == .created {
+                try await waitForStableWindow(window, minimumAge: 2.5)
+            }
+        }
+        if !pairIsOnTarget {
+            if let targetBounds {
+                phase = "prepare target display"
+                try await prepareForSplit([first, second], display: targetBounds)
+            }
             // Never dismantle an existing fullscreen workspace to reuse one of its windows.
             guard !NativeAX.bool(first.element, "AXFullScreen"), !NativeAX.bool(second.element, "AXFullScreen") else {
                 throw NativeSplitError.alreadyFullscreen
@@ -69,6 +91,71 @@ extension NewWindowService {
             try await Task.sleep(for: .milliseconds(150))
         }
         throw NativeSplitError.pairUnconfirmed
+    }
+
+    private func prepareForSplit(_ windows: [CapturedWindow], display: CGRect) async throws {
+        // A new AX window can exist before an Electron or AppKit content tree is ready. Do not
+        // take focus or enter fullscreen until its exact WindowServer identity has stayed stable.
+        for window in windows where window.origin == .created {
+            try await waitForStableWindow(window, minimumAge: 2.5)
+        }
+        for window in windows where window.origin == .created && NativeAX.bool(window.element, "AXFullScreen") {
+            try setAttribute("AXFullScreen", value: kCFBooleanFalse, on: window.element)
+        }
+        for window in windows where window.origin == .created {
+            try await waitForStableWindow(window, requireWindowed: true)
+        }
+        for (index, window) in windows.enumerated() {
+            guard let frame = NativeAX.frame(window.element) else { throw NativeSplitError.windowMissing }
+            if !NativeSplitGeometry.isOnDisplay(frame, display: display) {
+                guard window.origin == .created else { throw NativeSplitError.windowPlacementUnavailable }
+                var point = NativeSplitGeometry.placementOrigin(frame, display: display, cascade: index)
+                guard let value = AXValueCreate(.cgPoint, &point) else { throw NativeSplitError.windowPlacementUnavailable }
+                try setAttribute(kAXPositionAttribute, value: value, on: window.element)
+            }
+            try await waitForStableWindow(window, display: display, requireWindowed: true)
+        }
+    }
+
+    private func setAttribute(_ attribute: String, value: CFTypeRef, on window: AXUIElement) throws {
+        var settable = DarwinBoolean(false)
+        guard AXUIElementIsAttributeSettable(window, attribute as CFString, &settable) == .success,
+              settable.boolValue else { throw NativeSplitError.windowPlacementUnavailable }
+        let result = AXUIElementSetAttributeValue(window, attribute as CFString, value)
+        // CannotComplete can mean the application applied the write but did not reply. Observe the
+        // exact window instead of retrying a state-changing operation.
+        guard result == .success || result == .cannotComplete else { throw NativeSplitError.windowPlacementUnavailable }
+    }
+
+    private func waitForStableWindow(_ window: CapturedWindow, display: CGRect? = nil,
+                                     requireWindowed: Bool = false, minimumAge: TimeInterval = 0) async throws {
+        guard let id = window.windowID else { throw NativeSplitError.ambiguousWindow }
+        let app = AXUIElementCreateApplication(window.application.pid)
+        _ = AXUIElementSetMessagingTimeout(app, 0.5)
+        var previous: CGRect?
+        var stableSamples = 0
+        for _ in 0..<60 {
+            try await Task.sleep(for: .milliseconds(150))
+            try Task.checkCancellation()
+            guard await isCurrent(window.application) else { throw NativeSplitError.windowMissing }
+            let visible = windowEntries(onScreen: true).contains {
+                ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value == id
+                    && ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == window.application.pid
+            }
+            guard visible, let frame = NativeAX.frame(window.element), frame.width > 0, frame.height > 0,
+                  !NativeAX.bool(app, kAXElementBusyAttribute),
+                  !requireWindowed || !NativeAX.bool(window.element, "AXFullScreen"),
+                  display.map({ NativeSplitGeometry.isOnDisplay(frame, display: $0) }) ?? true else {
+                previous = nil
+                stableSamples = 0
+                continue
+            }
+            if let previous, NativeSplitGeometry.approximatelyEqual(previous, frame) { stableSamples += 1 }
+            else { stableSamples = 1 }
+            previous = frame
+            if stableSamples >= 3, Date().timeIntervalSince(window.capturedAt) >= minimumAge { return }
+        }
+        throw NativeSplitError.windowNotReady
     }
 
     private func focus(_ window: CapturedWindow) async throws {
@@ -302,6 +389,7 @@ extension NewWindowService {
             let window = try await validatedWindow(token)
             do {
                 let identified = CapturedWindow(application: window.application, element: window.element,
+                                                origin: window.origin, capturedAt: window.capturedAt,
                                                 windowID: try windowID(window), existingWindowIDs: window.existingWindowIDs)
                 capturedWindows[token] = identified
                 return identified

@@ -60,25 +60,42 @@ import Testing
     #expect(NativeSplitGeometry.percentage(left: display, right: display, display: display) == nil)
 }
 
+@Test func targetDisplayPlacementUsesGlobalCoordinatesWithoutResizing() {
+    let display = CGRect(x: -1920, y: -1080, width: 1920, height: 1080)
+    let window = CGRect(x: 0, y: 25, width: 1440, height: 822)
+    let origin = NativeSplitGeometry.placementOrigin(window, display: display, cascade: 0)
+    let placed = CGRect(origin: origin, size: window.size)
+    #expect(origin == CGPoint(x: -1680, y: -951))
+    #expect(placed.size == window.size)
+    #expect(NativeSplitGeometry.isOnDisplay(placed, display: display))
+    #expect(!NativeSplitGeometry.isOnDisplay(window, display: display))
+    #expect(NativeSplitGeometry.approximatelyEqual(placed, placed.offsetBy(dx: 1, dy: -1)))
+    #expect(!NativeSplitGeometry.approximatelyEqual(placed, placed.offsetBy(dx: 2, dy: 0)))
+}
+
 @Test @MainActor func productionOpeningPassesRatioAndDoesNotFallBackToLaunchOnly() async {
     let first = SavedApplication(name: "Left", bundleIdentifier: "test.left", bundlePath: "/Applications/Left.app")
     let second = SavedApplication(name: "Right", bundleIdentifier: "test.right", bundlePath: "/Applications/Right.app")
     var workspace = Workspace(id: 1, name: "Pair", projectPath: "", left: first.windowRecord, right: second.windowRecord)
     workspace.leftPercentage = 65
     var ratios: [Int] = []
+    var targets: [NativeDisplayTarget?] = []
     var fallbackCalls = 0
     let launcher = WorkspaceLauncher(resolve: { URL(fileURLWithPath: $0.bundlePath) }, launch: { _ in fallbackCalls += 1 },
-        createWindow: { _ in fallbackCalls += 1 }, openWorkspace: { group, urls, action in
+        createWindow: { _ in fallbackCalls += 1 }, openWorkspace: { group, urls, action, target in
             #expect(urls.count == 2)
             #expect(action == .newWindows)
             ratios.append(group.leftPercentage)
+            targets.append(target)
             if group.id == 2 { throw NativeSplitError.pairUnconfirmed }
             return .splitApplied(65)
         })
     let failed = Workspace(id: 2, name: "Pair", projectPath: "", left: first.windowRecord, right: second.windowRecord, leftPercentage: 65)
-    let result = await launcher.open([workspace, failed], action: .newWindows)
+    let target = NativeDisplayTarget(displayID: 42, supportsIndependentSpaces: true)
+    let result = await launcher.open([workspace, failed], action: .newWindows, target: target)
     #expect(result[1] == .splitApplied(65))
     #expect(result[2]?.succeeded == false)
     #expect(ratios == [65, 65])
+    #expect(targets == [target, target])
     #expect(fallbackCalls == 0)
 }

@@ -3,6 +3,7 @@ import Foundation
 enum NativeSplitError: String, LocalizedError {
     case windowMissing, ambiguousWindow, focusFailed, alreadyFullscreen, menuUnavailable
     case selectionUnavailable, pairUnconfirmed, ratioUnavailable, cancelled
+    case separateSpacesDisabled, targetDisplayUnavailable, windowPlacementUnavailable, windowNotReady
     var errorDescription: String? { L10n.text("split.error.\(rawValue)") }
 }
 
@@ -26,6 +27,21 @@ enum NativeSplitMenu {
 }
 
 enum NativeSplitGeometry {
+    static func isOnDisplay(_ frame: CGRect, display: CGRect) -> Bool {
+        frame.width > 0 && frame.height > 0 && display.contains(CGPoint(x: frame.midX, y: frame.midY))
+    }
+
+    static func placementOrigin(_ frame: CGRect, display: CGRect, cascade: Int) -> CGPoint {
+        let offset = CGFloat(cascade) * 24
+        return CGPoint(x: display.midX - frame.width / 2 + offset,
+                       y: display.midY - frame.height / 2 + offset)
+    }
+
+    static func approximatelyEqual(_ first: CGRect, _ second: CGRect, tolerance: CGFloat = 1) -> Bool {
+        abs(first.minX - second.minX) <= tolerance && abs(first.minY - second.minY) <= tolerance
+            && abs(first.width - second.width) <= tolerance && abs(first.height - second.height) <= tolerance
+    }
+
     static func isPickerBackdrop(_ frame: CGRect, display: CGRect) -> Bool {
         // Ignore small Dock hover labels and the backing window for only the tiled left half.
         frame.contains(display.insetBy(dx: 4, dy: 4))

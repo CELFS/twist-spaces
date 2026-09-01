@@ -4,6 +4,7 @@ struct WorkspacePanelView: View {
     @ObservedObject var model: WorkspaceViewModel
     @ObservedObject var panelSettings: PanelSettings
     @ObservedObject private var language = LanguageSettings.shared
+    @Environment(\.workspaceLaunchTargetResolver) private var launchTarget
     let close: () -> Void
     let settings: () -> Void
 
@@ -63,10 +64,16 @@ struct WorkspacePanelView: View {
                 }.buttonStyle(AppTextButtonStyle()).disabled(model.library.workspaces.isEmpty || model.isBusy)
                 Spacer()
                 if model.isBusy { ProgressView().controlSize(.small) }
-                Button(L10n.text("launch.batchActivate")) { Task { await model.openApplications(for: model.selectedIDs, action: .activate) } }
+                Button(L10n.text("launch.batchActivate")) {
+                    let target = launchTarget.resolve()
+                    Task { await model.openApplications(for: model.selectedIDs, action: .activate, target: target) }
+                }
                     .buttonStyle(AppNativeButtonStyle(prominent: true))
                     .disabled(model.selectedIDs.isEmpty || model.isBusy)
-                Button(L10n.text("launch.batchNew")) { Task { await model.openApplications(for: model.selectedIDs, action: .newWindows) } }
+                Button(L10n.text("launch.batchNew")) {
+                    let target = launchTarget.resolve()
+                    Task { await model.openApplications(for: model.selectedIDs, action: .newWindows, target: target) }
+                }
                     .buttonStyle(AppNativeButtonStyle())
                     .disabled(model.selectedIDs.isEmpty || model.isBusy)
             }

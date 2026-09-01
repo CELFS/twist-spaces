@@ -3,8 +3,14 @@ import OSLog
 
 @MainActor
 enum NativeWorkspaceOpening {
-    static func open(_ workspace: Workspace, urls: [String: URL], action: WorkspaceOpenAction) async throws -> WorkspaceLaunchResult {
+    static func open(_ workspace: Workspace, urls: [String: URL], action: WorkspaceOpenAction,
+                     target: NativeDisplayTarget?) async throws -> WorkspaceLaunchResult {
         guard AccessibilityPermission.isTrusted else { throw NewWindowError.permissionRequired }
+        if action == .newWindows {
+            guard let target else { throw NativeSplitError.targetDisplayUnavailable }
+            guard target.supportsIndependentSpaces else { throw NativeSplitError.separateSpacesDisabled }
+            guard target.activeBounds() != nil else { throw NativeSplitError.targetDisplayUnavailable }
+        }
         let service = NewWindowService.shared
         var tokens: [NativeWindowToken] = []
         var phase = "acquire"
@@ -37,14 +43,16 @@ enum NativeWorkspaceOpening {
             }
             phase = "validate pair"
             let matches = try await service.matchedWindows(tokens)
+            let origins = try await service.windowOrigins(tokens)
             // Matching an existing fullscreen window is useful on its own. Do not dismantle or
             // resize an existing fullscreen combination just to satisfy this new layout request.
-            if let preserved = preservedLayoutResult(matches) {
+            if let preserved = preservedLayoutResult(matches, origins: origins) {
                 await service.release(tokens)
                 return preserved
             }
             phase = "native split"
-            let actual = try await service.applyNativeSplit(left: tokens[0], right: tokens[1], percentage: workspace.leftPercentage)
+            let actual = try await service.applyNativeSplit(left: tokens[0], right: tokens[1], percentage: workspace.leftPercentage,
+                                                            target: action == .newWindows ? target : nil)
             await service.release(tokens)
             return .splitApplied(actual)
         } catch {
@@ -61,8 +69,9 @@ enum NativeWorkspaceOpening {
         }
     }
 
-    static func preservedLayoutResult(_ matches: [MatchedWindow]) -> WorkspaceLaunchResult? {
-        guard matches.count == 2, matches.contains(where: \.isFullscreen) else { return nil }
+    static func preservedLayoutResult(_ matches: [MatchedWindow], origins: [NativeWindowOrigin]) -> WorkspaceLaunchResult? {
+        guard matches.count == 2, origins.count == matches.count,
+              zip(matches, origins).contains(where: { $0.isFullscreen && $1 != .created }) else { return nil }
         return .windowsMatched(matches, .preserved)
     }
 }

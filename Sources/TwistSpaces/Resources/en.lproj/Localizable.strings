@@ -138,6 +138,10 @@
 "split.error.pairUnconfirmed" = "The two windows could not be confirmed in native Split View.";
 "split.error.ratioUnavailable" = "Unable to adjust the native Split View divider.";
 "split.error.cancelled" = "Split View operation interrupted or already in progress.";
+"split.error.separateSpacesDisabled" = "Turn on ‘Displays have separate Spaces’ in Desktop & Dock settings to create Split View on another display.";
+"split.error.targetDisplayUnavailable" = "The display used to open this combination is no longer available.";
+"split.error.windowPlacementUnavailable" = "A target window could not be safely placed on the selected display.";
+"split.error.windowNotReady" = "A newly opened window did not become stable in time. Check the application before retrying.";
 "split.ratioLimited" = "Actual split: %d%% / %d%%. Requested %d%% / %d%% could not be applied.";
 "launch.windowWithTitle" = "%@ — %@";
 "launch.windowMatched" = "Matched: %@ window is open.";

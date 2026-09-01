@@ -107,12 +107,13 @@ final class WorkspaceViewModel: ObservableObject {
         } catch { draft.error = error.localizedDescription }
     }
 
-    func openApplications(for ids: Set<Int>, action: WorkspaceOpenAction = .activate) async {
+    func openApplications(for ids: Set<Int>, action: WorkspaceOpenAction = .activate,
+                          target: NativeDisplayTarget? = nil) async {
         guard !isBusy else { return }
         isBusy = true
         defer { isBusy = false }
         let workspaces = library.workspaces.filter { ids.contains($0.id) }
-        let outcomes = await launcher.open(workspaces, action: action)
+        let outcomes = await launcher.open(workspaces, action: action, target: target)
         results.merge(outcomes) { _, latest in latest }
     }
 

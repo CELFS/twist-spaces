@@ -138,6 +138,10 @@
 "split.error.pairUnconfirmed" = "未能确认两个窗口已进入原生全屏分屏。";
 "split.error.ratioUnavailable" = "无法调整原生分屏分隔条。";
 "split.error.cancelled" = "分屏操作已中断或正在进行中。";
+"split.error.separateSpacesDisabled" = "请在“桌面与程序坞”设置中开启“显示器具有单独的空间”，再在其他显示器创建分屏。";
+"split.error.targetDisplayUnavailable" = "用于打开此组合的显示器已不可用。";
+"split.error.windowPlacementUnavailable" = "无法将目标窗口安全放置到所选显示器。";
+"split.error.windowNotReady" = "新建窗口未能及时稳定，请检查应用后重试。";
 "split.ratioLimited" = "实际比例为 %d%% / %d%%，未达到设置的 %d%% / %d%%。";
 "launch.windowWithTitle" = "%@ — %@";
 "launch.windowMatched" = "匹配成功：%@ 窗口已打开。";
