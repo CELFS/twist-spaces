@@ -1,0 +1,94 @@
+name: Release Preview
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release-preview:
+    name: Build arm64 preview release
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Validate tag and version
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(plutil -extract version raw -expect string version.json)"
+          expected_tag="v${version}"
+          if [[ "$GITHUB_REF_NAME" != "$expected_tag" ]]; then
+            printf 'Tag %s does not match version.json (%s).\n' "$GITHUB_REF_NAME" "$expected_tag" >&2
+            exit 1
+          fi
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            printf 'version.json must use a three-component numeric version.\n' >&2
+            exit 1
+          fi
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+
+      - name: Run tests
+        run: swift test --disable-xctest
+
+      - name: Build ad-hoc signed preview app
+        run: bash claude_jobs/build-app.sh release --adhoc-sign
+
+      - name: Verify and package preview app
+        id: package
+        shell: bash
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          app_path="$GITHUB_WORKSPACE/build/release/Twist Spaces.app"
+          executable_path="$app_path/Contents/MacOS/TwistSpaces"
+          architecture="$(uname -m)"
+          if [[ "$architecture" != arm64 ]]; then
+            printf 'Expected an arm64 GitHub runner, received %s.\n' "$architecture" >&2
+            exit 1
+          fi
+          file "$executable_path"
+          codesign --verify --strict --verbose=2 "$app_path"
+
+          output_directory="$GITHUB_WORKSPACE/build/release-assets"
+          archive_name="Twist-Spaces-${VERSION}-macOS-${architecture}.zip"
+          archive_path="$output_directory/$archive_name"
+          checksums_path="$output_directory/SHA256SUMS.txt"
+          mkdir -p "$output_directory"
+          ditto -c -k --sequesterRsrc --keepParent "$app_path" "$archive_path"
+          (
+            cd "$output_directory"
+            shasum -a 256 "$archive_name" > "$(basename "$checksums_path")"
+          )
+
+          printf 'archive=%s\n' "$archive_path" >> "$GITHUB_OUTPUT"
+          printf 'checksums=%s\n' "$checksums_path" >> "$GITHUB_OUTPUT"
+
+      - name: Create draft pre-release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARCHIVE_PATH: ${{ steps.package.outputs.archive }}
+          CHECKSUMS_PATH: ${{ steps.package.outputs.checksums }}
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" \
+            "$ARCHIVE_PATH" \
+            "$CHECKSUMS_PATH" \
+            --verify-tag \
+            --draft \
+            --prerelease \
+            --latest=false \
+            --title "Twist Spaces ${GITHUB_REF_NAME} Preview" \
+            --notes $'> [!WARNING]\n> This preview build is ad-hoc signed and is not notarized by Apple. macOS may require manual approval in System Settings > Privacy & Security.' \
+            --generate-notes
