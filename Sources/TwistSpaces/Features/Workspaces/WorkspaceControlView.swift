@@ -4,6 +4,7 @@ struct WorkspaceControlView: View {
     @ObservedObject var model: WorkspaceViewModel
     @ObservedObject var settings: PanelSettings
     @ObservedObject private var language = LanguageSettings.shared
+    @State private var showsDisplayResetConfirmation = false
     let showPanel: () -> Void
 
     var body: some View {
@@ -14,6 +15,14 @@ struct WorkspaceControlView: View {
                 HStack {
                     Text(L10n.text(model.controlTab.titleKey)).font(.title2.bold())
                     Spacer()
+                    if model.controlTab == .display {
+                        Button {
+                            showsDisplayResetConfirmation = true
+                        } label: {
+                            Label(L10n.text("panel.reset"), systemImage: "arrow.counterclockwise")
+                        }
+                        .appControlHover()
+                    }
                 }
                 .padding(.bottom, 8)
                 selectedPage
@@ -39,6 +48,18 @@ struct WorkspaceControlView: View {
         .id(language.selection)
         .sheet(item: $model.draft) { draft in
             WorkspaceEditorView(model: model, draft: draft)
+        }
+        .confirmationDialog(
+            L10n.text("panel.resetTitle"),
+            isPresented: $showsDisplayResetConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button(L10n.text("panel.reset"), role: .destructive) {
+                settings.resetDisplaySettings()
+            }
+            Button(L10n.text("workspace.cancel"), role: .cancel) {}
+        } message: {
+            Text(L10n.text("panel.resetMessage"))
         }
     }
 

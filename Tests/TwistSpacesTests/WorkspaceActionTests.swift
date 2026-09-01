@@ -22,15 +22,16 @@ private func group(_ id: Int) -> Workspace {
     let reference = WorkspaceLaunchModelReference()
     let target = NativeDisplayTarget(displayID: 42, supportsIndependentSpaces: true)
     let launcher = WorkspaceLauncher(resolve: { URL(fileURLWithPath: $0.bundlePath) }, openWorkspace: {
-        workspace, _, action, receivedTarget, progress in
+        workspace, _, action, receivedTarget, minimumAge, progress in
         #expect(action == .newWindows)
         #expect(receivedTarget == target)
+        #expect(minimumAge == 4.5)
         let update = WorkspaceLaunchProgress(workspaceName: workspace.name, target: target, phase: .arrangingWindows)
         progress?(update)
         #expect(reference.value?.launchProgress == update)
         return .splitApplied(50)
     })
-    let model = WorkspaceViewModel(store: store, launcher: launcher, catalog: { [] })
+    let model = WorkspaceViewModel(store: store, launcher: launcher, minimumWindowAge: { 4.5 }, catalog: { [] })
     reference.value = model
     await model.openApplications(for: [1], action: .newWindows, target: target)
     #expect(model.launchProgress == nil)
@@ -164,7 +165,7 @@ private func group(_ id: Int) -> Workspace {
     var activated = 0
     var split = 0
     let launcher = WorkspaceLauncher(resolve: { URL(fileURLWithPath: $0.bundlePath) }, launch: { _ in activated += 1 },
-                                     createWindow: { created.append($0) }, openWorkspace: { _, _, _, _, _ in
+                                     createWindow: { created.append($0) }, openWorkspace: { _, _, _, _, _, _ in
         split += 1
         return .splitApplied(50)
     })

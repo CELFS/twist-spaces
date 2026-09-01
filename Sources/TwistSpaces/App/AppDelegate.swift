@@ -13,8 +13,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         configureMainMenu()
-        let model = WorkspaceViewModel()
         let settings = PanelSettings()
+        let model = WorkspaceViewModel(minimumWindowAge: { settings.windowStabilityDelay })
         launchHUDController = WorkspaceLaunchHUDController(model: model)
         workspaceController = WorkspacePanelController(model: model, settings: settings)
         controlController = WorkspaceControlController(model: model, settings: settings, showPanel: { [weak self] in

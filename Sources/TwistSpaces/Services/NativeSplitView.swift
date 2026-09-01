@@ -7,6 +7,7 @@ import OSLog
 extension NewWindowService {
     func applyNativeSplit(left: NativeWindowToken, right: NativeWindowToken, percentage: Int,
                           target: NativeDisplayTarget? = nil,
+                          minimumWindowAge: TimeInterval = WindowStabilityPolicy.defaultMinimumAge,
                           progress: WorkspaceLaunchPhaseHandler? = nil) async throws -> Int {
         let started = ContinuousClock.now
         var phase = "identify left"
@@ -42,13 +43,14 @@ extension NewWindowService {
         if pairIsOnTarget, targetBounds != nil {
             phase = "stabilize confirmed pair"
             for window in [first, second] where window.origin == .created {
-                try await waitForStableWindow(window, minimumAge: 2.5)
+                try await waitForStableWindow(window, minimumAge: minimumWindowAge)
             }
         }
         if !pairIsOnTarget {
             if let targetBounds {
                 phase = "prepare target display"
-                try await prepareForSplit([first, second], display: targetBounds, progress: progress)
+                try await prepareForSplit([first, second], display: targetBounds,
+                                          minimumWindowAge: minimumWindowAge, progress: progress)
             }
             // Never dismantle an existing fullscreen workspace to reuse one of its windows.
             guard !NativeAX.bool(first.element, "AXFullScreen"), !NativeAX.bool(second.element, "AXFullScreen") else {
@@ -98,11 +100,12 @@ extension NewWindowService {
     }
 
     private func prepareForSplit(_ windows: [CapturedWindow], display: CGRect,
+                                 minimumWindowAge: TimeInterval,
                                  progress: WorkspaceLaunchPhaseHandler?) async throws {
         // A new AX window can exist before an Electron or AppKit content tree is ready. Do not
         // take focus or enter fullscreen until its exact WindowServer identity has stayed stable.
         for window in windows where window.origin == .created {
-            try await waitForStableWindow(window, minimumAge: 2.5)
+            try await waitForStableWindow(window, minimumAge: minimumWindowAge)
         }
         // Report the phase before the first state-changing AX write.
         await progress?(.arrangingWindows)

@@ -174,6 +174,11 @@
 "quickLaunch.sourceBoth" = "来自组合 · 手动添加";
 "panel.pin" = "固定面板";
 "panel.unpin" = "取消固定面板";
+"panel.windowStabilityDelay" = "窗口等待：%.1f 秒";
+"panel.windowStabilityHelp" = "新窗口进入分屏前必须保持稳定的最短时间；较慢的应用仍可能需要更久。";
+"panel.reset" = "重置";
+"panel.resetTitle" = "重置展示设置？";
+"panel.resetMessage" = "展开方向、面板宽度、边缘行为、窗口等待和快捷键将恢复默认值。";
 "workspace.ratioDragHint" = "拖动中间分隔线调整比例，也可聚焦预览框后使用左右方向键。";
 "workspace.delete" = "删除组合";
 "workspace.deleteTitle" = "删除“%@”？";

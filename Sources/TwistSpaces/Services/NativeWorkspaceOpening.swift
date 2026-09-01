@@ -4,7 +4,8 @@ import OSLog
 @MainActor
 enum NativeWorkspaceOpening {
     static func open(_ workspace: Workspace, urls: [String: URL], action: WorkspaceOpenAction,
-                     target: NativeDisplayTarget?, progress: WorkspaceLaunchProgressHandler?) async throws -> WorkspaceLaunchResult {
+                     target: NativeDisplayTarget?, minimumWindowAge: TimeInterval,
+                     progress: WorkspaceLaunchProgressHandler?) async throws -> WorkspaceLaunchResult {
         guard AccessibilityPermission.isTrusted else { throw NewWindowError.permissionRequired }
         if action == .newWindows {
             guard let target else { throw NativeSplitError.targetDisplayUnavailable }
@@ -66,6 +67,7 @@ enum NativeWorkspaceOpening {
             phase = "native split"
             let actual = try await service.applyNativeSplit(left: tokens[0], right: tokens[1], percentage: workspace.leftPercentage,
                                                             target: action == .newWindows ? target : nil,
+                                                            minimumWindowAge: minimumWindowAge,
                                                             progress: action == .newWindows ? phaseProgress : nil)
             await service.release(tokens)
             return .splitApplied(actual)

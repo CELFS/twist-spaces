@@ -80,14 +80,16 @@ import Testing
     workspace.leftPercentage = 65
     var ratios: [Int] = []
     var targets: [NativeDisplayTarget?] = []
+    var minimumAges: [TimeInterval] = []
     var progressUpdates: [WorkspaceLaunchProgress] = []
     var fallbackCalls = 0
     let launcher = WorkspaceLauncher(resolve: { URL(fileURLWithPath: $0.bundlePath) }, launch: { _ in fallbackCalls += 1 },
-        createWindow: { _ in fallbackCalls += 1 }, openWorkspace: { group, urls, action, target, progress in
+        createWindow: { _ in fallbackCalls += 1 }, openWorkspace: { group, urls, action, target, minimumAge, progress in
             #expect(urls.count == 2)
             #expect(action == .newWindows)
             ratios.append(group.leftPercentage)
             targets.append(target)
+            minimumAges.append(minimumAge)
             if let target {
                 progress?(WorkspaceLaunchProgress(workspaceName: group.name, target: target, phase: .waitingForApplications))
             }
@@ -96,13 +98,14 @@ import Testing
         })
     let failed = Workspace(id: 2, name: "Pair", projectPath: "", left: first.windowRecord, right: second.windowRecord, leftPercentage: 65)
     let target = NativeDisplayTarget(displayID: 42, supportsIndependentSpaces: true)
-    let result = await launcher.open([workspace, failed], action: .newWindows, target: target) {
+    let result = await launcher.open([workspace, failed], action: .newWindows, target: target, minimumWindowAge: 4) {
         progressUpdates.append($0)
     }
     #expect(result[1] == .splitApplied(65))
     #expect(result[2]?.succeeded == false)
     #expect(ratios == [65, 65])
     #expect(targets == [target, target])
+    #expect(minimumAges == [4, 4])
     #expect(progressUpdates.map(\.phase) == [.waitingForApplications, .waitingForApplications])
     #expect(fallbackCalls == 0)
 }

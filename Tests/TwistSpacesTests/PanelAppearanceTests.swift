@@ -275,6 +275,47 @@ import Testing
     #expect(PanelSettings(defaults: defaults).width == 520)
 }
 
+@Test @MainActor func windowStabilityDelayDefaultsPersistsAndClampsInvalidValues() throws {
+    let suite = "local.twist-spaces.tests.\(ProcessInfo.processInfo.globallyUniqueString)"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = PanelSettings(defaults: defaults)
+    #expect(settings.windowStabilityDelay == WindowStabilityPolicy.defaultMinimumAge)
+    settings.windowStabilityDelay = 4.5
+    #expect(PanelSettings(defaults: defaults).windowStabilityDelay == 4.5)
+    defaults.set(-10, forKey: "window.minimumStabilityDelay")
+    #expect(PanelSettings(defaults: defaults).windowStabilityDelay == WindowStabilityPolicy.minimumAgeRange.lowerBound)
+    defaults.set(100, forKey: "window.minimumStabilityDelay")
+    #expect(PanelSettings(defaults: defaults).windowStabilityDelay == WindowStabilityPolicy.minimumAgeRange.upperBound)
+    defaults.set(Double.nan, forKey: "window.minimumStabilityDelay")
+    #expect(PanelSettings(defaults: defaults).windowStabilityDelay == WindowStabilityPolicy.defaultMinimumAge)
+}
+
+@Test @MainActor func resettingDisplaySettingsPersistsVisibleDefaultsAndPreservesUnrelatedPreferences() throws {
+    let suite = "local.twist-spaces.tests.\(ProcessInfo.processInfo.globallyUniqueString)"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = PanelSettings(defaults: defaults)
+    settings.leftSide = true
+    settings.width = PanelAppearance.widthRange.upperBound
+    settings.edgeEnabled = true
+    settings.edgeDelay = 1.8
+    settings.windowStabilityDelay = 6
+    settings.shortcutEnabled = true
+    settings.quickLaunchExpanded = true
+
+    settings.resetDisplaySettings()
+
+    let reloaded = PanelSettings(defaults: defaults)
+    #expect(reloaded.leftSide == PanelSettings.defaultLeftSide)
+    #expect(reloaded.width == PanelAppearance.defaultWidth)
+    #expect(reloaded.edgeEnabled == PanelSettings.defaultEdgeEnabled)
+    #expect(reloaded.edgeDelay == PanelSettings.defaultEdgeDelay)
+    #expect(reloaded.windowStabilityDelay == WindowStabilityPolicy.defaultMinimumAge)
+    #expect(reloaded.shortcutEnabled == PanelSettings.defaultShortcutEnabled)
+    #expect(reloaded.quickLaunchExpanded)
+}
+
 @Test @MainActor func sharedPickerDoesNotFillItsParentWidth() {
     let picker = AppPicker(titleKey: "panel.side", selection: .constant(false), width: .compact) {
         Text("Left").tag(true)

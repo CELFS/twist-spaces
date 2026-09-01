@@ -4,12 +4,18 @@ import SwiftUI
 
 @MainActor
 final class PanelSettings: ObservableObject {
+    static let defaultLeftSide = false
+    static let defaultEdgeEnabled = false
+    static let defaultEdgeDelay = 0.6
+    static let defaultShortcutEnabled = false
+
     // Pinning survives manual collapse, but is not persisted between app launches.
     @Published var isPinned = false
     @Published var leftSide: Bool { didSet { defaults.set(leftSide, forKey: "panel.leftSide") } }
     @Published var width: Double { didSet { defaults.set(width, forKey: "panel.displayWidth") } }
     @Published var edgeEnabled: Bool { didSet { defaults.set(edgeEnabled, forKey: "panel.edgeEnabled") } }
     @Published var edgeDelay: Double { didSet { defaults.set(edgeDelay, forKey: "panel.edgeDelay") } }
+    @Published var windowStabilityDelay: Double { didSet { defaults.set(windowStabilityDelay, forKey: "window.minimumStabilityDelay") } }
     @Published var shortcutEnabled: Bool { didSet { defaults.set(shortcutEnabled, forKey: "panel.shortcutEnabled") } }
     @Published var quickLaunchExpanded: Bool { didSet { defaults.set(quickLaunchExpanded, forKey: "panel.quickLaunchExpanded") } }
     @Published var quickLaunchShowNames: Bool { didSet { defaults.set(quickLaunchShowNames, forKey: "panel.quickLaunchShowNames") } }
@@ -32,17 +38,32 @@ final class PanelSettings: ObservableObject {
         width = storedWidth.isFinite ? min(max(storedWidth, PanelAppearance.widthRange.lowerBound), PanelAppearance.widthRange.upperBound) : PanelAppearance.defaultWidth
         edgeEnabled = defaults.bool(forKey: "panel.edgeEnabled")
         let storedDelay = defaults.double(forKey: "panel.edgeDelay")
-        edgeDelay = storedDelay == 0 ? 0.6 : min(max(storedDelay, 0.2), 2)
+        edgeDelay = storedDelay == 0 ? Self.defaultEdgeDelay : min(max(storedDelay, 0.2), 2)
+        let storedWindowDelay = defaults.object(forKey: "window.minimumStabilityDelay") == nil
+            ? WindowStabilityPolicy.defaultMinimumAge
+            : defaults.double(forKey: "window.minimumStabilityDelay")
+        windowStabilityDelay = WindowStabilityPolicy.clampedMinimumAge(storedWindowDelay)
         shortcutEnabled = defaults.bool(forKey: "panel.shortcutEnabled")
         quickLaunchExpanded = defaults.bool(forKey: "panel.quickLaunchExpanded")
         quickLaunchShowNames = defaults.bool(forKey: "panel.quickLaunchShowNames")
         defaults.set(width, forKey: "panel.displayWidth")
+        defaults.set(windowStabilityDelay, forKey: "window.minimumStabilityDelay")
         defaults.set(2, forKey: "panel.widthRevision")
+    }
+
+    func resetDisplaySettings() {
+        leftSide = Self.defaultLeftSide
+        width = PanelAppearance.defaultWidth
+        edgeEnabled = Self.defaultEdgeEnabled
+        edgeDelay = Self.defaultEdgeDelay
+        windowStabilityDelay = WindowStabilityPolicy.defaultMinimumAge
+        shortcutEnabled = Self.defaultShortcutEnabled
     }
 }
 
 struct PanelSettingsView: View {
     @ObservedObject var settings: PanelSettings
+    private let sliderRowMaxWidth: CGFloat = 520
 
     var body: some View {
         SettingsPage {
@@ -57,6 +78,7 @@ struct PanelSettingsView: View {
                     .accessibilityLabel(String(format: L10n.text("panel.width"), Int(settings.width)))
                     .frame(maxWidth: .infinity)
             }
+            .frame(maxWidth: sliderRowMaxWidth)
             Toggle(L10n.text("panel.edgeEnabled"), isOn: $settings.edgeEnabled)
                 .appControlHover()
                 .padding(.leading, AppFormLayout.contentInset)
@@ -66,7 +88,20 @@ struct PanelSettingsView: View {
                 Slider(value: $settings.edgeDelay, in: 0.2...2, step: 0.1)
                     .accessibilityLabel(String(format: L10n.text("panel.edgeDelay"), settings.edgeDelay))
                     .frame(maxWidth: .infinity)
-            }.disabled(!settings.edgeEnabled)
+            }
+            .frame(maxWidth: sliderRowMaxWidth)
+            .disabled(!settings.edgeEnabled)
+            HStack(spacing: AppFormLayout.spacing) {
+                Text(String(format: L10n.text("panel.windowStabilityDelay"), settings.windowStabilityDelay))
+                    .frame(width: AppFormLayout.labelWidth, alignment: .trailing)
+                Slider(value: $settings.windowStabilityDelay, in: WindowStabilityPolicy.minimumAgeRange,
+                       step: WindowStabilityPolicy.minimumAgeStep)
+                    .accessibilityLabel(String(format: L10n.text("panel.windowStabilityDelay"), settings.windowStabilityDelay))
+                    .frame(maxWidth: .infinity)
+            }
+            .frame(maxWidth: sliderRowMaxWidth)
+            Text(L10n.text("panel.windowStabilityHelp")).font(.caption).foregroundStyle(.secondary)
+                .padding(.leading, AppFormLayout.contentInset)
             Toggle(L10n.text("panel.shortcutEnabled"), isOn: $settings.shortcutEnabled)
                 .appControlHover()
                 .padding(.leading, AppFormLayout.contentInset)
