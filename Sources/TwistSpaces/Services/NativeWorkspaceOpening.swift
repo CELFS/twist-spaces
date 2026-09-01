@@ -4,14 +4,24 @@ import OSLog
 @MainActor
 enum NativeWorkspaceOpening {
     static func open(_ workspace: Workspace, urls: [String: URL], action: WorkspaceOpenAction,
-                     target: NativeDisplayTarget?) async throws -> WorkspaceLaunchResult {
+                     target: NativeDisplayTarget?, progress: WorkspaceLaunchProgressHandler?) async throws -> WorkspaceLaunchResult {
         guard AccessibilityPermission.isTrusted else { throw NewWindowError.permissionRequired }
         if action == .newWindows {
             guard let target else { throw NativeSplitError.targetDisplayUnavailable }
             guard target.supportsIndependentSpaces else { throw NativeSplitError.separateSpacesDisabled }
             guard target.activeBounds() != nil else { throw NativeSplitError.targetDisplayUnavailable }
+            progress?(WorkspaceLaunchProgress(workspaceName: workspace.name, target: target, phase: .openingWindows))
         }
         let service = NewWindowService.shared
+        let baseProgress = target.map {
+            WorkspaceLaunchProgress(workspaceName: workspace.name, target: $0, phase: .openingWindows)
+        }
+        let phaseProgress: WorkspaceLaunchPhaseHandler?
+        if let baseProgress {
+            phaseProgress = { phase in progress?(baseProgress.updating(phase)) }
+        } else {
+            phaseProgress = nil
+        }
         var tokens: [NativeWindowToken] = []
         var phase = "acquire"
         let started = ContinuousClock.now
@@ -42,6 +52,9 @@ enum NativeWorkspaceOpening {
                 }
             }
             phase = "validate pair"
+            if let target, action == .newWindows {
+                progress?(WorkspaceLaunchProgress(workspaceName: workspace.name, target: target, phase: .waitingForApplications))
+            }
             let matches = try await service.matchedWindows(tokens)
             let origins = try await service.windowOrigins(tokens)
             // Matching an existing fullscreen window is useful on its own. Do not dismantle or
@@ -52,7 +65,8 @@ enum NativeWorkspaceOpening {
             }
             phase = "native split"
             let actual = try await service.applyNativeSplit(left: tokens[0], right: tokens[1], percentage: workspace.leftPercentage,
-                                                            target: action == .newWindows ? target : nil)
+                                                            target: action == .newWindows ? target : nil,
+                                                            progress: action == .newWindows ? phaseProgress : nil)
             await service.release(tokens)
             return .splitApplied(actual)
         } catch {

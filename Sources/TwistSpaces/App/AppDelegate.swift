@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var diagnosticsController: DiagnosticsWindowController?
     private var workspaceController: WorkspacePanelController?
     private var controlController: WorkspaceControlController?
+    private var launchHUDController: WorkspaceLaunchHUDController?
     private var statusMenu: NSMenu?
     private var languageObserver: AnyCancellable?
 
@@ -14,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         configureMainMenu()
         let model = WorkspaceViewModel()
         let settings = PanelSettings()
+        launchHUDController = WorkspaceLaunchHUDController(model: model)
         workspaceController = WorkspacePanelController(model: model, settings: settings)
         controlController = WorkspaceControlController(model: model, settings: settings, showPanel: { [weak self] in
             self?.workspaceController?.present()

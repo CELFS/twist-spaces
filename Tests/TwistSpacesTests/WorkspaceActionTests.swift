@@ -5,8 +5,37 @@ import Testing
 
 private let first = SavedApplication(name: "Editor", bundleIdentifier: "test.editor", bundlePath: "/Applications/Editor.app")
 private let second = SavedApplication(name: "Assistant", bundleIdentifier: "test.assistant", bundlePath: "/Applications/Assistant.app")
+@MainActor private final class WorkspaceLaunchModelReference {
+    weak var value: WorkspaceViewModel?
+}
+
 private func group(_ id: Int) -> Workspace {
     Workspace(id: id, name: "Group", projectPath: "", left: first.windowRecord, right: second.windowRecord)
+}
+
+@Test @MainActor func newWindowProgressIsVisibleOnlyWhileTheRequestRuns() async throws {
+    let directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        .appendingPathComponent(".build/action-progress-\(ProcessInfo.processInfo.globallyUniqueString)")
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let store = WorkspaceStore(url: directory.appendingPathComponent("workspaces.json"))
+    try store.save(WorkspaceLibrary(nextID: 2, workspaces: [group(1)]))
+    let reference = WorkspaceLaunchModelReference()
+    let target = NativeDisplayTarget(displayID: 42, supportsIndependentSpaces: true)
+    let launcher = WorkspaceLauncher(resolve: { URL(fileURLWithPath: $0.bundlePath) }, openWorkspace: {
+        workspace, _, action, receivedTarget, progress in
+        #expect(action == .newWindows)
+        #expect(receivedTarget == target)
+        let update = WorkspaceLaunchProgress(workspaceName: workspace.name, target: target, phase: .arrangingWindows)
+        progress?(update)
+        #expect(reference.value?.launchProgress == update)
+        return .splitApplied(50)
+    })
+    let model = WorkspaceViewModel(store: store, launcher: launcher, catalog: { [] })
+    reference.value = model
+    await model.openApplications(for: [1], action: .newWindows, target: target)
+    #expect(model.launchProgress == nil)
+    #expect(!model.isBusy)
+    #expect(model.results[1] == .splitApplied(50))
 }
 
 @Test @MainActor func newWindowsDoNotDeduplicateAcrossGroupsOrActivateInstead() async {
@@ -135,7 +164,7 @@ private func group(_ id: Int) -> Workspace {
     var activated = 0
     var split = 0
     let launcher = WorkspaceLauncher(resolve: { URL(fileURLWithPath: $0.bundlePath) }, launch: { _ in activated += 1 },
-                                     createWindow: { created.append($0) }, openWorkspace: { _, _, _, _ in
+                                     createWindow: { created.append($0) }, openWorkspace: { _, _, _, _, _ in
         split += 1
         return .splitApplied(50)
     })

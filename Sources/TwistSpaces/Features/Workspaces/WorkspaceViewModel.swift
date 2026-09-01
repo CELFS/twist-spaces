@@ -12,6 +12,7 @@ final class WorkspaceViewModel: ObservableObject {
     @Published var draft: WorkspaceDraft?
     @Published var error: String?
     @Published private(set) var results: [Int: WorkspaceLaunchResult] = [:]
+    @Published private(set) var launchProgress: WorkspaceLaunchProgress?
     @Published var controlTab = WorkspaceControlTab.combinations
     @Published private(set) var openingQuickLaunchID: String?
     @Published private(set) var quickLaunchOutcome: (application: SavedApplication, result: WorkspaceLaunchResult)?
@@ -111,9 +112,21 @@ final class WorkspaceViewModel: ObservableObject {
                           target: NativeDisplayTarget? = nil) async {
         guard !isBusy else { return }
         isBusy = true
-        defer { isBusy = false }
+        defer {
+            launchProgress = nil
+            isBusy = false
+        }
         let workspaces = library.workspaces.filter { ids.contains($0.id) }
-        let outcomes = await launcher.open(workspaces, action: action, target: target)
+        let progress: WorkspaceLaunchProgressHandler?
+        if action == .newWindows {
+            progress = { [weak self] update in
+                guard let self else { return }
+                self.launchProgress = update
+            }
+        } else {
+            progress = nil
+        }
+        let outcomes = await launcher.open(workspaces, action: action, target: target, progress: progress)
         results.merge(outcomes) { _, latest in latest }
     }
 

@@ -146,6 +146,11 @@
 "launch.windowWithTitle" = "%@ — %@";
 "launch.windowMatched" = "匹配成功：%@ 窗口已打开。";
 "launch.fullscreenPreserved" = "已保留现有全屏窗口及组合，未重新分屏或调整比例。";
+"launch.progress.title" = "正在编排“%@”";
+"launch.progress.openingWindows" = "正在唤醒两个窗口…";
+"launch.progress.waitingForApplications" = "给应用一点准备时间…";
+"launch.progress.arrangingWindows" = "正在把窗口带到这个显示器…";
+"launch.progress.creatingSplit" = "正在交给 macOS 创建分屏…";
 "quickLaunch.title" = "单应用启动";
 "quickLaunch.manage" = "管理启动应用";
 "quickLaunch.showNames" = "显示应用名称";

@@ -43,6 +43,50 @@ import Testing
     #expect(NSImage(contentsOf: colorURL) != nil)
 }
 
+@Test @MainActor func launchHUDIsBrandedCenteredAndNoninteractive() throws {
+    let target = NativeDisplayTarget(displayID: 42, supportsIndependentSpaces: true)
+    let progress = WorkspaceLaunchProgress(workspaceName: "Design + Code", target: target, phase: .waitingForApplications)
+    #expect(progress.title.contains("Design + Code"))
+    #expect(progress.message != progress.phase.messageKey)
+    #expect(progress.updating(.arrangingWindows).phase == .arrangingWindows)
+    for language in [AppLanguage.english, .simplifiedChinese] {
+        #expect(String(format: L10n.text("launch.progress.title", language: language), "Example").contains("Example"))
+        for phase in WorkspaceLaunchPhase.allCases {
+            #expect(L10n.text(phase.messageKey, language: language) != phase.messageKey)
+        }
+    }
+
+    let visibleFrame = CGRect(x: -1920, y: -1040, width: 1920, height: 1040)
+    let frame = WorkspaceLaunchHUDGeometry.centeredFrame(contentSize: WorkspaceLaunchHUDController.contentSize,
+                                                         visibleFrame: visibleFrame)
+    #expect(frame.size == WorkspaceLaunchHUDController.contentSize)
+    #expect(frame.midX == visibleFrame.midX)
+    #expect(frame.midY == visibleFrame.midY)
+    #expect(visibleFrame.contains(frame))
+
+    let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    let model = WorkspaceViewModel(store: WorkspaceStore(url: root.appendingPathComponent(".build/launch-hud-unused.json")), catalog: { [] })
+    let controller = WorkspaceLaunchHUDController(model: model)
+    let panel = try #require(controller.window as? WorkspaceLaunchHUDPanel)
+    #expect(!panel.canBecomeKey)
+    #expect(!panel.canBecomeMain)
+    #expect(panel.ignoresMouseEvents)
+    #expect(panel.styleMask.contains(.nonactivatingPanel))
+    #expect(panel.collectionBehavior.contains(.fullScreenAuxiliary))
+    #expect(panel.collectionBehavior.contains(.canJoinAllApplications))
+
+    let view = WorkspaceLaunchHUDView(progress: progress).environment(\.colorScheme, .dark)
+    let host = NSHostingView(rootView: view)
+    #expect(host.fittingSize == WorkspaceLaunchHUDController.contentSize)
+    guard ProcessInfo.processInfo.environment["TWIST_LAUNCH_HUD_PREVIEW"] == "1" else { return }
+    host.setFrameSize(host.fittingSize)
+    host.layoutSubtreeIfNeeded()
+    let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+    host.cacheDisplay(in: host.bounds, to: bitmap)
+    let output = root.appendingPathComponent(".build/launch-hud-preview.png")
+    try #require(bitmap.representation(using: .png, properties: [:])).write(to: output)
+}
+
 @Test @MainActor func brandedPanelAndControlCenterFitTheirSupportedWidths() throws {
     let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         .appendingPathComponent(".build/branding-previews")

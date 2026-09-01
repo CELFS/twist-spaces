@@ -43,13 +43,13 @@ final class WorkspaceLauncher {
     private let resolve: @MainActor (SavedApplication) throws -> URL
     private let launch: @MainActor (URL) async throws -> Void
     private let createWindow: @MainActor (URL) async throws -> Void
-    private let openWorkspace: (@MainActor (Workspace, [String: URL], WorkspaceOpenAction, NativeDisplayTarget?) async throws -> WorkspaceLaunchResult)?
+    private let openWorkspace: (@MainActor (Workspace, [String: URL], WorkspaceOpenAction, NativeDisplayTarget?, WorkspaceLaunchProgressHandler?) async throws -> WorkspaceLaunchResult)?
 
     init(
         resolve: @escaping @MainActor (SavedApplication) throws -> URL = WorkspaceLauncher.applicationURL,
         launch: @escaping @MainActor (URL) async throws -> Void = WorkspaceLauncher.openApplication,
         createWindow: @escaping @MainActor (URL) async throws -> Void = { try await NewWindowOperation().open($0) },
-        openWorkspace: (@MainActor (Workspace, [String: URL], WorkspaceOpenAction, NativeDisplayTarget?) async throws -> WorkspaceLaunchResult)? = nil
+        openWorkspace: (@MainActor (Workspace, [String: URL], WorkspaceOpenAction, NativeDisplayTarget?, WorkspaceLaunchProgressHandler?) async throws -> WorkspaceLaunchResult)? = nil
     ) {
         self.resolve = resolve
         self.launch = launch
@@ -88,7 +88,8 @@ final class WorkspaceLauncher {
     }
 
     func open(_ workspaces: [Workspace], action: WorkspaceOpenAction = .activate,
-              target: NativeDisplayTarget? = nil) async -> [Int: WorkspaceLaunchResult] {
+              target: NativeDisplayTarget? = nil,
+              progress: WorkspaceLaunchProgressHandler? = nil) async -> [Int: WorkspaceLaunchResult] {
         var resolved: [String: URL] = [:]
         var applications: [SavedApplication] = []
         var errors: [String: String] = [:]
@@ -109,7 +110,7 @@ final class WorkspaceLauncher {
             var results: [Int: WorkspaceLaunchResult] = [:]
             // Only a verified pair and ratio produce splitApplied; matching alone has its own result.
             for workspace in workspaces {
-                do { results[workspace.id] = try await openWorkspace(workspace, resolved, action, target) }
+                do { results[workspace.id] = try await openWorkspace(workspace, resolved, action, target, progress) }
                 catch { results[workspace.id] = .failed(error.localizedDescription) }
             }
             return results

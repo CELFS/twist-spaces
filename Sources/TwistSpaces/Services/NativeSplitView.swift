@@ -6,7 +6,8 @@ import OSLog
 // no AX size writes and no private Spaces APIs.
 extension NewWindowService {
     func applyNativeSplit(left: NativeWindowToken, right: NativeWindowToken, percentage: Int,
-                          target: NativeDisplayTarget? = nil) async throws -> Int {
+                          target: NativeDisplayTarget? = nil,
+                          progress: WorkspaceLaunchPhaseHandler? = nil) async throws -> Int {
         let started = ContinuousClock.now
         var phase = "identify left"
         defer {
@@ -47,12 +48,13 @@ extension NewWindowService {
         if !pairIsOnTarget {
             if let targetBounds {
                 phase = "prepare target display"
-                try await prepareForSplit([first, second], display: targetBounds)
+                try await prepareForSplit([first, second], display: targetBounds, progress: progress)
             }
             // Never dismantle an existing fullscreen workspace to reuse one of its windows.
             guard !NativeAX.bool(first.element, "AXFullScreen"), !NativeAX.bool(second.element, "AXFullScreen") else {
                 throw NativeSplitError.alreadyFullscreen
             }
+            await progress?(.creatingSplit)
             phase = "focus left"
             try await focus(first)
             let visibleBeforeTiling = Set(windowEntries(onScreen: true).compactMap {
@@ -63,6 +65,8 @@ extension NewWindowService {
             phase = "select partner"
             try await selectPartner(second, windowID: rightID, beside: first, leftID: leftID,
                                     visibleBeforeTiling: visibleBeforeTiling)
+        } else {
+            await progress?(.creatingSplit)
         }
         phase = "confirm pair"
         for _ in 0..<30 {
@@ -93,12 +97,15 @@ extension NewWindowService {
         throw NativeSplitError.pairUnconfirmed
     }
 
-    private func prepareForSplit(_ windows: [CapturedWindow], display: CGRect) async throws {
+    private func prepareForSplit(_ windows: [CapturedWindow], display: CGRect,
+                                 progress: WorkspaceLaunchPhaseHandler?) async throws {
         // A new AX window can exist before an Electron or AppKit content tree is ready. Do not
         // take focus or enter fullscreen until its exact WindowServer identity has stayed stable.
         for window in windows where window.origin == .created {
             try await waitForStableWindow(window, minimumAge: 2.5)
         }
+        // Report the phase before the first state-changing AX write.
+        await progress?(.arrangingWindows)
         for window in windows where window.origin == .created && NativeAX.bool(window.element, "AXFullScreen") {
             try setAttribute("AXFullScreen", value: kCFBooleanFalse, on: window.element)
         }

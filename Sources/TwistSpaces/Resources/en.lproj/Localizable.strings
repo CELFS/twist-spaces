@@ -146,6 +146,11 @@
 "launch.windowWithTitle" = "%@ — %@";
 "launch.windowMatched" = "Matched: %@ window is open.";
 "launch.fullscreenPreserved" = "Existing fullscreen windows and combinations were kept unchanged. No new Split View or ratio was applied.";
+"launch.progress.title" = "Arranging “%@”";
+"launch.progress.openingWindows" = "Waking up both windows…";
+"launch.progress.waitingForApplications" = "Giving the apps a moment to settle…";
+"launch.progress.arrangingWindows" = "Bringing the windows to this display…";
+"launch.progress.creatingSplit" = "Handing off to macOS Split View…";
 "quickLaunch.title" = "Quick Launch";
 "quickLaunch.manage" = "Manage quick launch apps";
 "quickLaunch.showNames" = "Show app names";
