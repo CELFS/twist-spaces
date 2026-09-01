@@ -1,3 +1,4 @@
+import CoreGraphics
 import Testing
 @testable import TwistSpaces
 
@@ -88,4 +89,10 @@ import Testing
                    MatchedWindow(applicationName: "Right", title: "", isFullscreen: true)]
     #expect(NativeWorkspaceOpening.preservedLayoutResult(matches, origins: [.created, .created]) == nil)
     #expect(NativeWorkspaceOpening.preservedLayoutResult(matches, origins: [.created, .matched]) != nil)
+}
+
+@Test @MainActor func singleDisplayFullscreenLaunchRemainsAvailableForNormalization() throws {
+    let target = NativeDisplayTarget(displayID: CGMainDisplayID(), supportsIndependentSpaces: true,
+                                     startsFromSingleDisplayFullscreen: true)
+    #expect(try NativeWorkspaceOpening.validateNewWindowTarget(target) == target)
 }

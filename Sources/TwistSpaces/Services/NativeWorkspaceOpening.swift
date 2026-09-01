@@ -8,9 +8,7 @@ enum NativeWorkspaceOpening {
                      progress: WorkspaceLaunchProgressHandler?) async throws -> WorkspaceLaunchResult {
         guard AccessibilityPermission.isTrusted else { throw NewWindowError.permissionRequired }
         if action == .newWindows {
-            guard let target else { throw NativeSplitError.targetDisplayUnavailable }
-            guard target.supportsIndependentSpaces else { throw NativeSplitError.separateSpacesDisabled }
-            guard target.activeBounds() != nil else { throw NativeSplitError.targetDisplayUnavailable }
+            let target = try validateNewWindowTarget(target)
             progress?(WorkspaceLaunchProgress(workspaceName: workspace.name, target: target, phase: .openingWindows))
         }
         let service = NewWindowService.shared
@@ -83,6 +81,13 @@ enum NativeWorkspaceOpening {
             }
             throw error
         }
+    }
+
+    static func validateNewWindowTarget(_ target: NativeDisplayTarget?) throws -> NativeDisplayTarget {
+        guard let target else { throw NativeSplitError.targetDisplayUnavailable }
+        guard target.supportsIndependentSpaces else { throw NativeSplitError.separateSpacesDisabled }
+        guard target.activeBounds() != nil else { throw NativeSplitError.targetDisplayUnavailable }
+        return target
     }
 
     static func preservedLayoutResult(_ matches: [MatchedWindow], origins: [NativeWindowOrigin]) -> WorkspaceLaunchResult? {

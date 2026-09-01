@@ -29,6 +29,15 @@ import Testing
     #expect(!NativeSplitMenu.isLeftCommand("屏幕右侧", ancestors: ["全屏幕拼贴"]))
 }
 
+@Test func incompleteCreatedFullscreenTilingRequiresRollback() {
+    #expect(NativeSplitRecovery.requiresRollback(didStartTiling: true, pairConfirmed: false))
+    #expect(!NativeSplitRecovery.requiresRollback(didStartTiling: false, pairConfirmed: false))
+    #expect(!NativeSplitRecovery.requiresRollback(didStartTiling: true, pairConfirmed: true))
+    #expect(NativeSplitRecovery.shouldRestore(origin: .created, isFullscreen: true))
+    #expect(!NativeSplitRecovery.shouldRestore(origin: .created, isFullscreen: false))
+    #expect(!NativeSplitRecovery.shouldRestore(origin: .matched, isFullscreen: true))
+}
+
 @Test func ratioMeasuresActualWindowsExcludingNativeDivider() {
     let display = CGRect(x: -1008, y: 100, width: 1008, height: 700)
     let left = CGRect(x: -1008, y: 100, width: 650, height: 700)

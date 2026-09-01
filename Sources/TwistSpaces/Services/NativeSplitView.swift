@@ -40,6 +40,7 @@ extension NewWindowService {
             guard let targetBounds else { return true }
             return NativeSplitGeometry.approximatelyEqual(pair.display, targetBounds)
         } == true
+        var didStartTiling = false
         if pairIsOnTarget, targetBounds != nil {
             phase = "stabilize confirmed pair"
             for window in [first, second] where window.origin == .created {
@@ -63,58 +64,102 @@ extension NewWindowService {
                 ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value
             })
             phase = "enter left tile"
-            try await enterLeftTile(first)
-            phase = "select partner"
-            try await selectPartner(second, windowID: rightID, beside: first, leftID: leftID,
-                                    visibleBeforeTiling: visibleBeforeTiling)
+            didStartTiling = true
+            do {
+                try await enterLeftTile(first)
+                phase = "select partner"
+                try await selectPartner(second, windowID: rightID, beside: first, leftID: leftID,
+                                        visibleBeforeTiling: visibleBeforeTiling)
+            } catch {
+                await rollbackCreatedFullscreenWindows([first, second])
+                throw error
+            }
         } else {
             await progress?(.creatingSplit)
         }
         phase = "confirm pair"
-        for _ in 0..<30 {
-            try Task.checkCancellation()
-            if let pair = confirmedPair(first, second, leftID: leftID, rightID: rightID) {
-                #if DEBUG
-                Logger(subsystem: "local.twist-spaces", category: "NativeSplit").notice("Pair confirmed left=\(leftID) right=\(rightID) bothFullscreen=true sameDisplay=true actual=\(pair.percentage) requested=\(percentage)")
-                #endif
-                if abs(pair.percentage - percentage) <= 1 { return pair.percentage }
-                phase = "adjust ratio"
-                try await dragDivider(pair, percentage: percentage)
-                var actual: Int?
-                for _ in 0..<15 {
-                    try await Task.sleep(for: .milliseconds(100))
-                    actual = confirmedPair(first, second, leftID: leftID, rightID: rightID)?.percentage
-                    if let actual, abs(actual - percentage) <= 1 {
-                        #if DEBUG
-                        Logger(subsystem: "local.twist-spaces", category: "NativeSplit").notice("Divider confirmed left=\(leftID) right=\(rightID) actual=\(actual) requested=\(percentage)")
-                        #endif
-                        return actual
+        do {
+            for _ in 0..<30 {
+                try Task.checkCancellation()
+                if let pair = confirmedPair(first, second, leftID: leftID, rightID: rightID) {
+                    #if DEBUG
+                    Logger(subsystem: "local.twist-spaces", category: "NativeSplit").notice("Pair confirmed left=\(leftID) right=\(rightID) bothFullscreen=true sameDisplay=true actual=\(pair.percentage) requested=\(percentage)")
+                    #endif
+                    if abs(pair.percentage - percentage) <= 1 { return pair.percentage }
+                    phase = "adjust ratio"
+                    try await dragDivider(pair, percentage: percentage)
+                    var actual: Int?
+                    for _ in 0..<15 {
+                        try await Task.sleep(for: .milliseconds(100))
+                        actual = confirmedPair(first, second, leftID: leftID, rightID: rightID)?.percentage
+                        if let actual, abs(actual - percentage) <= 1 {
+                            #if DEBUG
+                            Logger(subsystem: "local.twist-spaces", category: "NativeSplit").notice("Divider confirmed left=\(leftID) right=\(rightID) actual=\(actual) requested=\(percentage)")
+                            #endif
+                            return actual
+                        }
                     }
+                    if let actual { throw NativeSplitRatioError(requested: percentage, actual: actual) }
+                    throw NativeSplitError.pairUnconfirmed
                 }
-                if let actual { throw NativeSplitRatioError(requested: percentage, actual: actual) }
-                throw NativeSplitError.pairUnconfirmed
+                try await Task.sleep(for: .milliseconds(150))
             }
-            try await Task.sleep(for: .milliseconds(150))
+        } catch {
+            let pairConfirmed = confirmedPair(first, second, leftID: leftID, rightID: rightID) != nil
+            if NativeSplitRecovery.requiresRollback(didStartTiling: didStartTiling, pairConfirmed: pairConfirmed) {
+                await rollbackCreatedFullscreenWindows([first, second])
+            }
+            throw error
         }
+        if didStartTiling { await rollbackCreatedFullscreenWindows([first, second]) }
         throw NativeSplitError.pairUnconfirmed
+    }
+
+    private func rollbackCreatedFullscreenWindows(_ windows: [CapturedWindow]) async {
+        let candidates = windows.filter {
+            NativeSplitRecovery.shouldRestore(origin: $0.origin,
+                                              isFullscreen: NativeAX.bool($0.element, "AXFullScreen"))
+        }
+        guard !candidates.isEmpty else { return }
+        #if DEBUG
+        Logger(subsystem: "local.twist-spaces", category: "NativeSplit").notice("Rolling back created fullscreen windows count=\(candidates.count)")
+        #endif
+        for window in candidates {
+            try? setAttribute("AXFullScreen", value: kCFBooleanFalse, on: window.element)
+        }
+        // Fullscreen transitions are asynchronous. Observe only the flag here: the restored window
+        // may land on a desktop Space that is no longer visible on the sole display.
+        for _ in 0..<15 {
+            if candidates.allSatisfy({ !NativeAX.bool($0.element, "AXFullScreen") }) { return }
+            try? await Task.sleep(for: .milliseconds(100))
+        }
     }
 
     private func prepareForSplit(_ windows: [CapturedWindow], display: CGRect,
                                  minimumWindowAge: TimeInterval,
                                  progress: WorkspaceLaunchPhaseHandler?) async throws {
+        let createdFullscreen = windows.filter {
+            $0.origin == .created && NativeAX.bool($0.element, "AXFullScreen")
+        }
+        if !createdFullscreen.isEmpty {
+            // A window created from an existing fullscreen Space can become fullscreen itself.
+            // It may already be hidden after the next app opens, so normalize fullscreen before
+            // the visibility-based stability check below.
+            await progress?(.arrangingWindows)
+            for window in createdFullscreen {
+                try setAttribute("AXFullScreen", value: kCFBooleanFalse, on: window.element)
+            }
+            for window in createdFullscreen {
+                try await waitUntilWindowed(window)
+            }
+        }
         // A new AX window can exist before an Electron or AppKit content tree is ready. Do not
         // take focus or enter fullscreen until its exact WindowServer identity has stayed stable.
         for window in windows where window.origin == .created {
-            try await waitForStableWindow(window, minimumAge: minimumWindowAge)
+            try await waitForStableWindow(window, requireWindowed: true, minimumAge: minimumWindowAge)
         }
         // Report the phase before the first state-changing AX write.
         await progress?(.arrangingWindows)
-        for window in windows where window.origin == .created && NativeAX.bool(window.element, "AXFullScreen") {
-            try setAttribute("AXFullScreen", value: kCFBooleanFalse, on: window.element)
-        }
-        for window in windows where window.origin == .created {
-            try await waitForStableWindow(window, requireWindowed: true)
-        }
         for (index, window) in windows.enumerated() {
             guard let frame = NativeAX.frame(window.element) else { throw NativeSplitError.windowMissing }
             if !NativeSplitGeometry.isOnDisplay(frame, display: display) {
@@ -125,6 +170,16 @@ extension NewWindowService {
             }
             try await waitForStableWindow(window, display: display, requireWindowed: true)
         }
+    }
+
+    private func waitUntilWindowed(_ window: CapturedWindow) async throws {
+        for _ in 0..<30 {
+            try Task.checkCancellation()
+            guard await isCurrent(window.application) else { throw NativeSplitError.windowMissing }
+            if !NativeAX.bool(window.element, "AXFullScreen") { return }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        throw NativeSplitError.windowNotReady
     }
 
     private func setAttribute(_ attribute: String, value: CFTypeRef, on window: AXUIElement) throws {
