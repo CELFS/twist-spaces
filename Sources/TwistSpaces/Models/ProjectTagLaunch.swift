@@ -29,8 +29,10 @@ struct ProjectTagLaunch: Equatable, Sendable {
         let right = Self.normalized(rightProjectName)
         guard left != nil || right != nil else { return nil }
         workspaceID = nil
-        self.leftProjectName = left
-        self.rightProjectName = right
+        // Some apps, including Codex, expose only a generic AX window title. A confirmed native
+        // pair still supplies an exact project label from its partner without guessing another window.
+        self.leftProjectName = left ?? right
+        self.rightProjectName = right ?? left
         self.displayID = displayID
         self.leftWindowID = leftWindowID
         self.rightWindowID = rightWindowID

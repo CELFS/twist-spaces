@@ -33,9 +33,14 @@ final class ProjectTagController: NSObject {
     init(settings: PanelSettings) {
         self.settings = settings
         super.init()
-        settingsObserver = Publishers.CombineLatest(settings.$projectTagsEnabled, settings.$hiddenProjectTagNames)
+        settingsObserver = Publishers.CombineLatest3(settings.$projectTagsEnabled,
+                                                      settings.$projectTagHoverEnabled,
+                                                      settings.$hiddenProjectTagNames)
             .receive(on: RunLoop.main)
-            .sink { [weak self] _, _ in self?.refreshVisibility() }
+            .sink { [weak self] _, _, _ in
+                self?.refreshVisibility()
+                self?.updateHover()
+            }
         timer = Timer.scheduledTimer(timeInterval: 0.15, target: self,
                                      selector: #selector(tick), userInfo: nil, repeats: true)
         discoverCurrentPairs()
@@ -140,10 +145,12 @@ final class ProjectTagController: NSObject {
         let pointer = NSEvent.mouseLocation
         for session in sessions.values {
             if let panel = session.leftPanel {
-                setHovered(panel.frame.contains(pointer), panel: panel, current: &session.leftHovered)
+                setHovered(settings.projectTagHoverEnabled && panel.frame.contains(pointer),
+                           panel: panel, current: &session.leftHovered)
             }
             if let panel = session.rightPanel {
-                setHovered(panel.frame.contains(pointer), panel: panel, current: &session.rightHovered)
+                setHovered(settings.projectTagHoverEnabled && panel.frame.contains(pointer),
+                           panel: panel, current: &session.rightHovered)
             }
         }
     }

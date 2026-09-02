@@ -12,6 +12,8 @@ struct ProjectTagSettingsView: View {
                 Text(L10n.text("projectTags.help"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Toggle(L10n.text("projectTags.hoverEnabled"), isOn: $settings.projectTagHoverEnabled)
+                    .appControlHover()
                 HStack {
                     TextField(L10n.text("projectTags.hiddenNamePlaceholder"), text: $hiddenName)
                         .textFieldStyle(.roundedBorder)

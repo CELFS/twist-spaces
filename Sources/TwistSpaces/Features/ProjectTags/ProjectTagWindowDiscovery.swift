@@ -51,7 +51,8 @@ enum ProjectTagWindowDiscovery {
             let title = NativeAX.string(window, kAXTitleAttribute) ?? ""
             return Candidate(windowID: windowID, frame: visibleFrame,
                              projectName: ProjectTagNameResolver.projectName(
-                                windowTitle: title, applicationName: applicationName
+                                windowTitle: title, applicationName: applicationName,
+                                bundleIdentifier: application.bundleIdentifier ?? ""
                              ))
         }
     }

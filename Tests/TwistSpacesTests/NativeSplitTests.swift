@@ -111,6 +111,14 @@ import Testing
     #expect(ProjectTagNameResolver.projectName(
         windowTitle: "Fix existing project tags — Codex", applicationName: "ChatGPT"
     ) == "Fix existing project tags")
+    #expect(ProjectTagNameResolver.projectName(
+        windowTitle: "Search twist-spaces — version.json — twist-spaces — Index Modified",
+        applicationName: "Cursor", bundleIdentifier: "com.todesktop.230313mzl4w4u92"
+    ) == "twist-spaces")
+    #expect(ProjectTagNameResolver.projectName(
+        windowTitle: "Search twist-balance — notes.md — twist-balance — Untracked",
+        applicationName: "Cursor", bundleIdentifier: "com.todesktop.230313mzl4w4u92"
+    ) == "twist-balance")
     #expect(ProjectTagNameResolver.projectName(windowTitle: "Cursor", applicationName: "Cursor") == nil)
     #expect(ProjectTagNameResolver.projectName(windowTitle: "  ", applicationName: "Cursor") == nil)
 }
@@ -121,6 +129,10 @@ import Testing
     #expect(launch?.workspaceID == nil)
     #expect(launch?.leftProjectName == "ABC")
     #expect(launch?.rightProjectName == "XYZ")
+    let codexFallback = ProjectTagLaunch(displayID: 42, leftWindowID: 101, rightWindowID: 202,
+                                         leftProjectName: "ABC", rightProjectName: nil)
+    #expect(codexFallback?.leftProjectName == "ABC")
+    #expect(codexFallback?.rightProjectName == "ABC")
     #expect(ProjectTagLaunch(displayID: 42, leftWindowID: 101, rightWindowID: 202,
                              leftProjectName: "", rightProjectName: nil) == nil)
 }

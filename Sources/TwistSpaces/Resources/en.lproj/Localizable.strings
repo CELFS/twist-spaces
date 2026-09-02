@@ -188,6 +188,7 @@
 "projectTags.add" = "Add";
 "projectTags.remove" = "Remove";
 "projectTags.removeNamed" = "Remove %@ from hidden projects";
+"projectTags.hoverEnabled" = "Enhance tags on hover";
 "workspace.ratioDragHint" = "Drag the divider to adjust the split, or focus the preview and use the left and right arrow keys.";
 "workspace.delete" = "Delete combination";
 "workspace.deleteTitle" = "Delete “%@”?";

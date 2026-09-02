@@ -358,7 +358,9 @@ import Testing
     defer { defaults.removePersistentDomain(forName: suite) }
     let settings = PanelSettings(defaults: defaults)
     #expect(settings.projectTagsEnabled)
+    #expect(settings.projectTagHoverEnabled)
     settings.projectTagsEnabled = false
+    settings.projectTagHoverEnabled = false
     settings.addHiddenProjectTagName("  ABC  ")
     settings.addHiddenProjectTagName("abc")
     settings.addHiddenProjectTagName("xyz")
@@ -368,6 +370,7 @@ import Testing
 
     let reloaded = PanelSettings(defaults: defaults)
     #expect(!reloaded.projectTagsEnabled)
+    #expect(!reloaded.projectTagHoverEnabled)
     #expect(reloaded.hiddenProjectTagNames == ["ABC", "xyz"])
     reloaded.removeHiddenProjectTagName("AbC")
     #expect(PanelSettings(defaults: defaults).hiddenProjectTagNames == ["xyz"])
@@ -386,6 +389,7 @@ import Testing
     settings.shortcutEnabled = true
     settings.quickLaunchExpanded = true
     settings.projectTagsEnabled = false
+    settings.projectTagHoverEnabled = false
     settings.addHiddenProjectTagName("private-project")
 
     settings.resetDisplaySettings()
@@ -399,6 +403,7 @@ import Testing
     #expect(reloaded.shortcutEnabled == PanelSettings.defaultShortcutEnabled)
     #expect(reloaded.quickLaunchExpanded)
     #expect(!reloaded.projectTagsEnabled)
+    #expect(!reloaded.projectTagHoverEnabled)
     #expect(reloaded.hiddenProjectTagNames == ["private-project"])
 }
 

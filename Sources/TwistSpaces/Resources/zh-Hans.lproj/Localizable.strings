@@ -185,6 +185,7 @@
 "projectTags.add" = "添加";
 "projectTags.remove" = "移除";
 "projectTags.removeNamed" = "从隐藏项目中移除 %@";
+"projectTags.hoverEnabled" = "悬停时增强显示";
 "workspace.ratioDragHint" = "拖动中间分隔线调整比例，也可聚焦预览框后使用左右方向键。";
 "workspace.delete" = "删除组合";
 "workspace.deleteTitle" = "删除“%@”？";

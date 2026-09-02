@@ -9,6 +9,7 @@ final class PanelSettings: ObservableObject {
     static let defaultEdgeDelay = 0.6
     static let defaultShortcutEnabled = false
     static let defaultProjectTagsEnabled = true
+    static let defaultProjectTagHoverEnabled = true
 
     // Pinning survives manual collapse, but is not persisted between app launches.
     @Published var isPinned = false
@@ -21,6 +22,9 @@ final class PanelSettings: ObservableObject {
     @Published var quickLaunchExpanded: Bool { didSet { defaults.set(quickLaunchExpanded, forKey: "panel.quickLaunchExpanded") } }
     @Published var quickLaunchShowNames: Bool { didSet { defaults.set(quickLaunchShowNames, forKey: "panel.quickLaunchShowNames") } }
     @Published var projectTagsEnabled: Bool { didSet { defaults.set(projectTagsEnabled, forKey: "projectTags.enabled") } }
+    @Published var projectTagHoverEnabled: Bool {
+        didSet { defaults.set(projectTagHoverEnabled, forKey: "projectTags.hoverEnabled") }
+    }
     @Published private(set) var hiddenProjectTagNames: [String] {
         didSet { defaults.set(hiddenProjectTagNames, forKey: "projectTags.hiddenNames") }
     }
@@ -54,6 +58,9 @@ final class PanelSettings: ObservableObject {
         projectTagsEnabled = defaults.object(forKey: "projectTags.enabled") == nil
             ? Self.defaultProjectTagsEnabled
             : defaults.bool(forKey: "projectTags.enabled")
+        projectTagHoverEnabled = defaults.object(forKey: "projectTags.hoverEnabled") == nil
+            ? Self.defaultProjectTagHoverEnabled
+            : defaults.bool(forKey: "projectTags.hoverEnabled")
         hiddenProjectTagNames = (defaults.stringArray(forKey: "projectTags.hiddenNames") ?? []).reduce(into: []) { names, raw in
             let name = Self.normalizedProjectTagName(raw)
             if !name.isEmpty, !names.contains(where: { $0.caseInsensitiveCompare(name) == .orderedSame }) {
@@ -63,6 +70,7 @@ final class PanelSettings: ObservableObject {
         defaults.set(width, forKey: "panel.displayWidth")
         defaults.set(windowStabilityDelay, forKey: "window.minimumStabilityDelay")
         defaults.set(projectTagsEnabled, forKey: "projectTags.enabled")
+        defaults.set(projectTagHoverEnabled, forKey: "projectTags.hoverEnabled")
         defaults.set(hiddenProjectTagNames, forKey: "projectTags.hiddenNames")
         defaults.set(2, forKey: "panel.widthRevision")
     }
