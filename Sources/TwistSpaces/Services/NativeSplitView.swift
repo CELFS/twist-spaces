@@ -8,7 +8,7 @@ extension NewWindowService {
     func applyNativeSplit(left: NativeWindowToken, right: NativeWindowToken, percentage: Int,
                           target: NativeDisplayTarget? = nil,
                           minimumWindowAge: TimeInterval = WindowStabilityPolicy.defaultMinimumAge,
-                          progress: WorkspaceLaunchPhaseHandler? = nil) async throws -> Int {
+                          progress: WorkspaceLaunchPhaseHandler? = nil) async throws -> NativeSplitResult {
         let started = ContinuousClock.now
         var phase = "identify left"
         defer {
@@ -85,21 +85,23 @@ extension NewWindowService {
                     #if DEBUG
                     Logger(subsystem: "local.twist-spaces", category: "NativeSplit").notice("Pair confirmed left=\(leftID) right=\(rightID) bothFullscreen=true sameDisplay=true actual=\(pair.percentage) requested=\(percentage)")
                     #endif
-                    if abs(pair.percentage - percentage) <= 1 { return pair.percentage }
+                    if abs(pair.percentage - percentage) <= 1 {
+                        return nativeSplitResult(pair, leftID: leftID, rightID: rightID)
+                    }
                     phase = "adjust ratio"
                     try await dragDivider(pair, percentage: percentage)
-                    var actual: Int?
+                    var confirmed: Pair?
                     for _ in 0..<15 {
                         try await Task.sleep(for: .milliseconds(100))
-                        actual = confirmedPair(first, second, leftID: leftID, rightID: rightID)?.percentage
-                        if let actual, abs(actual - percentage) <= 1 {
+                        confirmed = confirmedPair(first, second, leftID: leftID, rightID: rightID)
+                        if let confirmed, abs(confirmed.percentage - percentage) <= 1 {
                             #if DEBUG
-                            Logger(subsystem: "local.twist-spaces", category: "NativeSplit").notice("Divider confirmed left=\(leftID) right=\(rightID) actual=\(actual) requested=\(percentage)")
+                            Logger(subsystem: "local.twist-spaces", category: "NativeSplit").notice("Divider confirmed left=\(leftID) right=\(rightID) actual=\(confirmed.percentage) requested=\(percentage)")
                             #endif
-                            return actual
+                            return nativeSplitResult(confirmed, leftID: leftID, rightID: rightID)
                         }
                     }
-                    if let actual { throw NativeSplitRatioError(requested: percentage, actual: actual) }
+                    if let confirmed { throw NativeSplitRatioError(requested: percentage, actual: confirmed.percentage) }
                     throw NativeSplitError.pairUnconfirmed
                 }
                 try await Task.sleep(for: .milliseconds(150))
@@ -113,6 +115,16 @@ extension NewWindowService {
         }
         if didStartTiling { await rollbackCreatedFullscreenWindows([first, second]) }
         throw NativeSplitError.pairUnconfirmed
+    }
+
+    func confirmedNativeSplit(left: NativeWindowToken, right: NativeWindowToken) async throws -> NativeSplitResult? {
+        let first = try await identifiedWindow(left)
+        let second = try await identifiedWindow(right)
+        guard !CFEqual(first.element, second.element) else { throw NativeSplitError.ambiguousWindow }
+        let leftID = try windowID(first)
+        let rightID = try windowID(second)
+        guard let pair = confirmedPair(first, second, leftID: leftID, rightID: rightID) else { return nil }
+        return nativeSplitResult(pair, leftID: leftID, rightID: rightID)
     }
 
     private func rollbackCreatedFullscreenWindows(_ windows: [CapturedWindow]) async {
@@ -504,7 +516,13 @@ extension NewWindowService {
         let left: CGRect
         let right: CGRect
         let display: CGRect
+        let displayID: CGDirectDisplayID
         let percentage: Int
+    }
+
+    private func nativeSplitResult(_ pair: Pair, leftID: CGWindowID, rightID: CGWindowID) -> NativeSplitResult {
+        NativeSplitResult(percentage: pair.percentage, displayID: pair.displayID,
+                          leftWindowID: leftID, rightWindowID: rightID)
     }
 
     private func confirmedPair(_ left: CapturedWindow, _ right: CapturedWindow, leftID: CGWindowID, rightID: CGWindowID) -> Pair? {
@@ -518,7 +536,7 @@ extension NewWindowService {
         for id in displays.prefix(Int(count)) {
             let bounds = CGDisplayBounds(id)
             if let percentage = NativeSplitGeometry.percentage(left: first, right: second, display: bounds) {
-                return Pair(left: first, right: second, display: bounds, percentage: percentage)
+                return Pair(left: first, right: second, display: bounds, displayID: id, percentage: percentage)
             }
         }
         return nil

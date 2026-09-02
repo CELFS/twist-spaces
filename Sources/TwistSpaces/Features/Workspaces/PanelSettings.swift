@@ -8,6 +8,7 @@ final class PanelSettings: ObservableObject {
     static let defaultEdgeEnabled = false
     static let defaultEdgeDelay = 0.6
     static let defaultShortcutEnabled = false
+    static let defaultProjectTagsEnabled = true
 
     // Pinning survives manual collapse, but is not persisted between app launches.
     @Published var isPinned = false
@@ -19,6 +20,10 @@ final class PanelSettings: ObservableObject {
     @Published var shortcutEnabled: Bool { didSet { defaults.set(shortcutEnabled, forKey: "panel.shortcutEnabled") } }
     @Published var quickLaunchExpanded: Bool { didSet { defaults.set(quickLaunchExpanded, forKey: "panel.quickLaunchExpanded") } }
     @Published var quickLaunchShowNames: Bool { didSet { defaults.set(quickLaunchShowNames, forKey: "panel.quickLaunchShowNames") } }
+    @Published var projectTagsEnabled: Bool { didSet { defaults.set(projectTagsEnabled, forKey: "projectTags.enabled") } }
+    @Published private(set) var hiddenProjectTagNames: [String] {
+        didSet { defaults.set(hiddenProjectTagNames, forKey: "projectTags.hiddenNames") }
+    }
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
@@ -46,9 +51,39 @@ final class PanelSettings: ObservableObject {
         shortcutEnabled = defaults.bool(forKey: "panel.shortcutEnabled")
         quickLaunchExpanded = defaults.bool(forKey: "panel.quickLaunchExpanded")
         quickLaunchShowNames = defaults.bool(forKey: "panel.quickLaunchShowNames")
+        projectTagsEnabled = defaults.object(forKey: "projectTags.enabled") == nil
+            ? Self.defaultProjectTagsEnabled
+            : defaults.bool(forKey: "projectTags.enabled")
+        hiddenProjectTagNames = (defaults.stringArray(forKey: "projectTags.hiddenNames") ?? []).reduce(into: []) { names, raw in
+            let name = Self.normalizedProjectTagName(raw)
+            if !name.isEmpty, !names.contains(where: { $0.caseInsensitiveCompare(name) == .orderedSame }) {
+                names.append(name)
+            }
+        }
         defaults.set(width, forKey: "panel.displayWidth")
         defaults.set(windowStabilityDelay, forKey: "window.minimumStabilityDelay")
+        defaults.set(projectTagsEnabled, forKey: "projectTags.enabled")
+        defaults.set(hiddenProjectTagNames, forKey: "projectTags.hiddenNames")
         defaults.set(2, forKey: "panel.widthRevision")
+    }
+
+    static func normalizedProjectTagName(_ raw: String) -> String {
+        raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    func addHiddenProjectTagName(_ raw: String) {
+        let name = Self.normalizedProjectTagName(raw)
+        guard !name.isEmpty,
+              !hiddenProjectTagNames.contains(where: { $0.caseInsensitiveCompare(name) == .orderedSame }) else { return }
+        hiddenProjectTagNames.append(name)
+    }
+
+    func removeHiddenProjectTagName(_ name: String) {
+        hiddenProjectTagNames.removeAll { $0.caseInsensitiveCompare(name) == .orderedSame }
+    }
+
+    func hidesProjectTag(named name: String) -> Bool {
+        hiddenProjectTagNames.contains { $0.caseInsensitiveCompare(Self.normalizedProjectTagName(name)) == .orderedSame }
     }
 
     func resetDisplaySettings() {
@@ -107,6 +142,7 @@ struct PanelSettingsView: View {
                 .padding(.leading, AppFormLayout.contentInset)
             Text(L10n.text("panel.behaviorHelp")).font(.caption).foregroundStyle(.secondary)
                 .padding(.leading, AppFormLayout.contentInset)
+            ProjectTagSettingsView(settings: settings)
         }
     }
 }

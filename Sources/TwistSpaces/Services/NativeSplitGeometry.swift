@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 enum NativeSplitError: String, LocalizedError {
@@ -13,6 +14,13 @@ struct NativeSplitRatioError: LocalizedError {
     let requested: Int
     let actual: Int
     var errorDescription: String? { String(format: L10n.text("split.ratioLimited"), actual, 100 - actual, requested, 100 - requested) }
+}
+
+struct NativeSplitResult: Equatable, Sendable {
+    let percentage: Int
+    let displayID: CGDirectDisplayID
+    let leftWindowID: CGWindowID
+    let rightWindowID: CGWindowID
 }
 
 enum NativeSplitMenu {

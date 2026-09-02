@@ -5,7 +5,8 @@ import OSLog
 enum NativeWorkspaceOpening {
     static func open(_ workspace: Workspace, urls: [String: URL], action: WorkspaceOpenAction,
                      target: NativeDisplayTarget?, minimumWindowAge: TimeInterval,
-                     progress: WorkspaceLaunchProgressHandler?) async throws -> WorkspaceLaunchResult {
+                     progress: WorkspaceLaunchProgressHandler?,
+                     projectTag: ProjectTagLaunchHandler?) async throws -> WorkspaceLaunchResult {
         guard AccessibilityPermission.isTrusted else { throw NewWindowError.permissionRequired }
         if action == .newWindows {
             let target = try validateNewWindowTarget(target)
@@ -59,16 +60,23 @@ enum NativeWorkspaceOpening {
             // Matching an existing fullscreen window is useful on its own. Do not dismantle or
             // resize an existing fullscreen combination just to satisfy this new layout request.
             if let preserved = preservedLayoutResult(matches, origins: origins) {
+                if let split = try await service.confirmedNativeSplit(left: tokens[0], right: tokens[1]),
+                   let launch = ProjectTagLaunch(workspace: workspace, split: split) {
+                    projectTag?(launch)
+                }
                 await service.release(tokens)
                 return preserved
             }
             phase = "native split"
-            let actual = try await service.applyNativeSplit(left: tokens[0], right: tokens[1], percentage: workspace.leftPercentage,
-                                                            target: action == .newWindows ? target : nil,
-                                                            minimumWindowAge: minimumWindowAge,
-                                                            progress: action == .newWindows ? phaseProgress : nil)
+            let split = try await service.applyNativeSplit(left: tokens[0], right: tokens[1], percentage: workspace.leftPercentage,
+                                                           target: action == .newWindows ? target : nil,
+                                                           minimumWindowAge: minimumWindowAge,
+                                                           progress: action == .newWindows ? phaseProgress : nil)
+            if let launch = ProjectTagLaunch(workspace: workspace, split: split) {
+                projectTag?(launch)
+            }
             await service.release(tokens)
-            return .splitApplied(actual)
+            return .splitApplied(split.percentage)
         } catch {
             #if DEBUG
             Logger(subsystem: "local.twist-spaces", category: "WindowOpening").error("Workspace failed id=\(workspace.id) phase=\(phase, privacy: .public) elapsed=\(String(describing: started.duration(to: .now)), privacy: .public) error=\(error.localizedDescription, privacy: .public)")

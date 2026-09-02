@@ -179,6 +179,12 @@
 "panel.reset" = "重置";
 "panel.resetTitle" = "重置展示设置？";
 "panel.resetMessage" = "展开方向、面板宽度、边缘行为、窗口等待和快捷键将恢复默认值。";
+"projectTags.enabled" = "显示项目标签";
+"projectTags.help" = "在全屏组合两侧显示项目目录名称；隐藏名单使用忽略大小写的完整名称匹配。";
+"projectTags.hiddenNamePlaceholder" = "需要隐藏的项目名称";
+"projectTags.add" = "添加";
+"projectTags.remove" = "移除";
+"projectTags.removeNamed" = "从隐藏项目中移除 %@";
 "workspace.ratioDragHint" = "拖动中间分隔线调整比例，也可聚焦预览框后使用左右方向键。";
 "workspace.delete" = "删除组合";
 "workspace.deleteTitle" = "删除“%@”？";

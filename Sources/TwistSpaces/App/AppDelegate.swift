@@ -8,13 +8,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var workspaceController: WorkspacePanelController?
     private var controlController: WorkspaceControlController?
     private var launchHUDController: WorkspaceLaunchHUDController?
+    private var projectTagController: ProjectTagController?
     private var statusMenu: NSMenu?
     private var languageObserver: AnyCancellable?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         configureMainMenu()
         let settings = PanelSettings()
-        let model = WorkspaceViewModel(minimumWindowAge: { settings.windowStabilityDelay })
+        let projectTagController = ProjectTagController(settings: settings)
+        self.projectTagController = projectTagController
+        let model = WorkspaceViewModel(minimumWindowAge: { settings.windowStabilityDelay },
+                                       projectTag: { [weak projectTagController] launch in
+            projectTagController?.show(launch)
+        })
         launchHUDController = WorkspaceLaunchHUDController(model: model)
         workspaceController = WorkspacePanelController(model: model, settings: settings)
         controlController = WorkspaceControlController(model: model, settings: settings, showPanel: { [weak self] in
@@ -119,7 +125,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
-    func applicationWillTerminate(_ notification: Notification) { workspaceController?.stop() }
+    func applicationWillTerminate(_ notification: Notification) {
+        workspaceController?.stop()
+        projectTagController?.stop()
+    }
 
     @objc private func showDiagnostics() {
         if diagnosticsController == nil {

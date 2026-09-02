@@ -20,14 +20,17 @@ final class WorkspaceViewModel: ObservableObject {
     private let store: WorkspaceStore
     private let launcher: WorkspaceLauncher
     private let minimumWindowAge: @MainActor () -> TimeInterval
+    private let projectTag: ProjectTagLaunchHandler?
     private let catalog: @MainActor () -> [SavedApplication]
 
     init(store: WorkspaceStore = .standard, launcher: WorkspaceLauncher = .system,
          minimumWindowAge: @escaping @MainActor () -> TimeInterval = { WindowStabilityPolicy.defaultMinimumAge },
+         projectTag: ProjectTagLaunchHandler? = nil,
          catalog: @escaping @MainActor () -> [SavedApplication] = ApplicationCatalog.selectableApplications) {
         self.store = store
         self.launcher = launcher
         self.minimumWindowAge = minimumWindowAge
+        self.projectTag = projectTag
         self.catalog = catalog
         do {
             library = try store.load()
@@ -147,7 +150,7 @@ final class WorkspaceViewModel: ObservableObject {
         }
         let outcomes = await launcher.open(workspaces, action: action, target: target,
                                            minimumWindowAge: WindowStabilityPolicy.clampedMinimumAge(minimumWindowAge()),
-                                           progress: progress)
+                                           progress: progress, projectTag: projectTag)
         results.merge(outcomes) { _, latest in latest }
     }
 

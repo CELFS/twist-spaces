@@ -82,6 +82,49 @@ import Testing
     #expect(!NativeSplitGeometry.approximatelyEqual(placed, placed.offsetBy(dx: 2, dy: 0)))
 }
 
+@Test func projectTagLaunchUsesOnlyTheProjectFoldersLastComponent() {
+    let left = SavedApplication(name: "Left", bundleIdentifier: "test.left", bundlePath: "/Applications/Left.app")
+    let right = SavedApplication(name: "Right", bundleIdentifier: "test.right", bundlePath: "/Applications/Right.app")
+    let split = NativeSplitResult(percentage: 50, displayID: 42, leftWindowID: 101, rightWindowID: 202)
+    let workspace = Workspace(id: 7, name: "A custom combination name", projectPath: "/Projects/ABC",
+                              left: left.windowRecord, right: right.windowRecord)
+    let launch = ProjectTagLaunch(workspace: workspace, split: split)
+    #expect(launch?.workspaceID == 7)
+    #expect(launch?.leftProjectName == "ABC")
+    #expect(launch?.rightProjectName == "ABC")
+    #expect(launch?.displayID == 42)
+    #expect(launch?.leftWindowID == 101)
+    #expect(launch?.rightWindowID == 202)
+
+    let noProject = Workspace(id: 8, name: "No fallback", projectPath: "",
+                              left: left.windowRecord, right: right.windowRecord)
+    #expect(ProjectTagLaunch(workspace: noProject, split: split) == nil)
+}
+
+@Test func projectTagNameUsesTheWindowProjectComponentAndRejectsGenericTitles() {
+    #expect(ProjectTagNameResolver.projectName(
+        windowTitle: "ProjectTagController.swift — twist-spaces — Cursor", applicationName: "Cursor"
+    ) == "twist-spaces")
+    #expect(ProjectTagNameResolver.projectName(
+        windowTitle: "● README.md – flaq.ai – Cursor", applicationName: "Cursor"
+    ) == "flaq.ai")
+    #expect(ProjectTagNameResolver.projectName(
+        windowTitle: "Fix existing project tags — Codex", applicationName: "ChatGPT"
+    ) == "Fix existing project tags")
+    #expect(ProjectTagNameResolver.projectName(windowTitle: "Cursor", applicationName: "Cursor") == nil)
+    #expect(ProjectTagNameResolver.projectName(windowTitle: "  ", applicationName: "Cursor") == nil)
+}
+
+@Test func discoveredProjectTagsCanIdentifyEachSideIndependently() {
+    let launch = ProjectTagLaunch(displayID: 42, leftWindowID: 101, rightWindowID: 202,
+                                  leftProjectName: "ABC", rightProjectName: "XYZ")
+    #expect(launch?.workspaceID == nil)
+    #expect(launch?.leftProjectName == "ABC")
+    #expect(launch?.rightProjectName == "XYZ")
+    #expect(ProjectTagLaunch(displayID: 42, leftWindowID: 101, rightWindowID: 202,
+                             leftProjectName: "", rightProjectName: nil) == nil)
+}
+
 @Test @MainActor func productionOpeningPassesRatioAndDoesNotFallBackToLaunchOnly() async {
     let first = SavedApplication(name: "Left", bundleIdentifier: "test.left", bundlePath: "/Applications/Left.app")
     let second = SavedApplication(name: "Right", bundleIdentifier: "test.right", bundlePath: "/Applications/Right.app")
@@ -93,7 +136,7 @@ import Testing
     var progressUpdates: [WorkspaceLaunchProgress] = []
     var fallbackCalls = 0
     let launcher = WorkspaceLauncher(resolve: { URL(fileURLWithPath: $0.bundlePath) }, launch: { _ in fallbackCalls += 1 },
-        createWindow: { _ in fallbackCalls += 1 }, openWorkspace: { group, urls, action, target, minimumAge, progress in
+        createWindow: { _ in fallbackCalls += 1 }, openWorkspace: { group, urls, action, target, minimumAge, progress, _ in
             #expect(urls.count == 2)
             #expect(action == .newWindows)
             ratios.append(group.leftPercentage)

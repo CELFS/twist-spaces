@@ -352,6 +352,27 @@ import Testing
     #expect(PanelSettings(defaults: defaults).windowStabilityDelay == WindowStabilityPolicy.defaultMinimumAge)
 }
 
+@Test @MainActor func projectTagsDefaultOnAndHiddenNamesUseExactCaseInsensitiveMatching() throws {
+    let suite = "local.twist-spaces.tests.\(ProcessInfo.processInfo.globallyUniqueString)"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = PanelSettings(defaults: defaults)
+    #expect(settings.projectTagsEnabled)
+    settings.projectTagsEnabled = false
+    settings.addHiddenProjectTagName("  ABC  ")
+    settings.addHiddenProjectTagName("abc")
+    settings.addHiddenProjectTagName("xyz")
+    #expect(settings.hiddenProjectTagNames == ["ABC", "xyz"])
+    #expect(settings.hidesProjectTag(named: "abc"))
+    #expect(!settings.hidesProjectTag(named: "abc-web"))
+
+    let reloaded = PanelSettings(defaults: defaults)
+    #expect(!reloaded.projectTagsEnabled)
+    #expect(reloaded.hiddenProjectTagNames == ["ABC", "xyz"])
+    reloaded.removeHiddenProjectTagName("AbC")
+    #expect(PanelSettings(defaults: defaults).hiddenProjectTagNames == ["xyz"])
+}
+
 @Test @MainActor func resettingDisplaySettingsPersistsVisibleDefaultsAndPreservesUnrelatedPreferences() throws {
     let suite = "local.twist-spaces.tests.\(ProcessInfo.processInfo.globallyUniqueString)"
     let defaults = try #require(UserDefaults(suiteName: suite))
@@ -364,6 +385,8 @@ import Testing
     settings.windowStabilityDelay = 6
     settings.shortcutEnabled = true
     settings.quickLaunchExpanded = true
+    settings.projectTagsEnabled = false
+    settings.addHiddenProjectTagName("private-project")
 
     settings.resetDisplaySettings()
 
@@ -375,6 +398,8 @@ import Testing
     #expect(reloaded.windowStabilityDelay == WindowStabilityPolicy.defaultMinimumAge)
     #expect(reloaded.shortcutEnabled == PanelSettings.defaultShortcutEnabled)
     #expect(reloaded.quickLaunchExpanded)
+    #expect(!reloaded.projectTagsEnabled)
+    #expect(reloaded.hiddenProjectTagNames == ["private-project"])
 }
 
 @Test @MainActor func sharedPickerDoesNotFillItsParentWidth() {

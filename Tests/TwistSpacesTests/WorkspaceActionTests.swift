@@ -22,7 +22,7 @@ private func group(_ id: Int) -> Workspace {
     let reference = WorkspaceLaunchModelReference()
     let target = NativeDisplayTarget(displayID: 42, supportsIndependentSpaces: true)
     let launcher = WorkspaceLauncher(resolve: { URL(fileURLWithPath: $0.bundlePath) }, openWorkspace: {
-        workspace, _, action, receivedTarget, minimumAge, progress in
+        workspace, _, action, receivedTarget, minimumAge, progress, _ in
         #expect(action == .newWindows)
         #expect(receivedTarget == target)
         #expect(minimumAge == 4.5)
@@ -37,6 +37,27 @@ private func group(_ id: Int) -> Workspace {
     #expect(model.launchProgress == nil)
     #expect(!model.isBusy)
     #expect(model.results[1] == .splitApplied(50))
+}
+
+@Test @MainActor func successfulSplitPublishesItsExactProjectTagIdentity() async throws {
+    let directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        .appendingPathComponent(".build/action-tag-\(ProcessInfo.processInfo.globallyUniqueString)")
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let store = WorkspaceStore(url: directory.appendingPathComponent("workspaces.json"))
+    var workspace = group(1)
+    workspace.projectPath = "/Projects/ABC"
+    try store.save(WorkspaceLibrary(nextID: 2, workspaces: [workspace]))
+    let split = NativeSplitResult(percentage: 50, displayID: 42, leftWindowID: 101, rightWindowID: 202)
+    let launcher = WorkspaceLauncher(resolve: { URL(fileURLWithPath: $0.bundlePath) }, openWorkspace: {
+        workspace, _, _, _, _, _, projectTag in
+        if let launch = ProjectTagLaunch(workspace: workspace, split: split) { projectTag?(launch) }
+        return .splitApplied(split.percentage)
+    })
+    var tags: [ProjectTagLaunch] = []
+    let model = WorkspaceViewModel(store: store, launcher: launcher, projectTag: { tags.append($0) }, catalog: { [] })
+    await model.openApplications(for: [1])
+    #expect(tags.count == 1)
+    #expect(tags.first == ProjectTagLaunch(workspace: workspace, split: split))
 }
 
 @Test @MainActor func newWindowsDoNotDeduplicateAcrossGroupsOrActivateInstead() async {
@@ -165,7 +186,7 @@ private func group(_ id: Int) -> Workspace {
     var activated = 0
     var split = 0
     let launcher = WorkspaceLauncher(resolve: { URL(fileURLWithPath: $0.bundlePath) }, launch: { _ in activated += 1 },
-                                     createWindow: { created.append($0) }, openWorkspace: { _, _, _, _, _, _ in
+                                     createWindow: { created.append($0) }, openWorkspace: { _, _, _, _, _, _, _ in
         split += 1
         return .splitApplied(50)
     })
