@@ -8,7 +8,9 @@ import Testing
     var recordedVisible = false
     var frontCount = 0
     var desktopCount = 0
+    var requestedFrames: [NSRect] = []
     override var isVisible: Bool { recordedVisible }
+    override func setFrame(_ frameRect: NSRect, display flag: Bool) { requestedFrames.append(frameRect) }
     override func makeKeyAndOrderFront(_ sender: Any?) { recordedVisible = true; frontCount += 1 }
     override func orderBack(_ sender: Any?) { recordedVisible = true; desktopCount += 1 }
     override func orderOut(_ sender: Any?) { recordedVisible = false; collapseCount += 1 }
@@ -92,7 +94,7 @@ import Testing
         .appendingPathComponent(".build/panel-pin-\(ProcessInfo.processInfo.globallyUniqueString)")
     let settings = PanelSettings(defaults: defaults)
     let model = WorkspaceViewModel(store: WorkspaceStore(url: directory.appendingPathComponent("workspaces.json")), catalog: { [] })
-    let controller = WorkspacePanelController(model: model, settings: settings)
+    let controller = WorkspacePanelController(model: model, settings: settings, displayProvider: { [] })
     defer { controller.stop() }
     let displayPanel = try #require(controller.window as? WorkspaceDisplayPanel)
     let window = PanelCloseRecorder(contentRect: .zero, styleMask: .borderless, backing: .buffered, defer: false)
@@ -160,6 +162,65 @@ import Testing
     try await Task.sleep(for: .milliseconds(30))
     #expect(!window.isVisible)
     #expect(!PanelSettings(defaults: defaults).isPinned)
+}
+
+@Test @MainActor func pinnedPanelCreatesAndReconcilesOneDesktopPanelPerDisplay() async throws {
+    let suite = "local.twist-spaces.tests.\(ProcessInfo.processInfo.globallyUniqueString)"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        .appendingPathComponent(".build/panel-multi-display-\(ProcessInfo.processInfo.globallyUniqueString)")
+    let settings = PanelSettings(defaults: defaults)
+    let model = WorkspaceViewModel(store: WorkspaceStore(url: directory.appendingPathComponent("workspaces.json")), catalog: { [] })
+    var displays = [
+        WorkspacePanelDisplay(id: 1, frame: CGRect(x: 0, y: 0, width: 1440, height: 900),
+                              visibleFrame: CGRect(x: 0, y: 24, width: 1440, height: 876)),
+        WorkspacePanelDisplay(id: 2, frame: CGRect(x: 1440, y: 0, width: 1920, height: 1080),
+                              visibleFrame: CGRect(x: 1440, y: 0, width: 1920, height: 1056))
+    ]
+    var replicas: [PanelCloseRecorder] = []
+    let controller = WorkspacePanelController(model: model, settings: settings, displayProvider: { displays }, panelFactory: {
+        let panel = PanelCloseRecorder(contentRect: .zero, styleMask: .borderless, backing: .buffered, defer: false)
+        replicas.append(panel)
+        return panel
+    })
+    defer { controller.stop() }
+    let primary = PanelCloseRecorder(contentRect: .zero, styleMask: .borderless, backing: .buffered, defer: false)
+    controller.window = primary
+    controller.present()
+    settings.isPinned = true
+    try await Task.sleep(for: .milliseconds(30))
+
+    #expect(replicas.count == 1)
+    let firstReplica = try #require(replicas.first)
+    #expect(primary.requestedFrames.last == PanelAppearance.frame(in: displays[0].visibleFrame, width: settings.width,
+                                                                  leftSide: settings.leftSide))
+    #expect(firstReplica.requestedFrames.last == PanelAppearance.frame(in: displays[1].visibleFrame, width: settings.width,
+                                                                       leftSide: settings.leftSide))
+    #expect(primary.collectionBehavior.contains(.stationary))
+    #expect(firstReplica.collectionBehavior.contains(.stationary))
+    #expect(primary.isVisible)
+    #expect(firstReplica.isVisible)
+
+    displays.append(WorkspacePanelDisplay(id: 3, frame: CGRect(x: -1280, y: 0, width: 1280, height: 800),
+                                          visibleFrame: CGRect(x: -1280, y: 0, width: 1280, height: 776)))
+    controller.reconcilePinnedDisplays()
+    #expect(firstReplica.collapseCount == 1)
+    #expect(replicas.count == 3)
+    #expect(replicas.suffix(2).allSatisfy { $0.isVisible })
+
+    let secondGeneration = Array(replicas.suffix(2))
+    displays.removeAll { $0.id == 2 }
+    controller.reconcilePinnedDisplays()
+    #expect(secondGeneration.allSatisfy { !$0.isVisible })
+    #expect(replicas.count == 4)
+    #expect(replicas.last?.isVisible == true)
+
+    settings.isPinned = false
+    try await Task.sleep(for: .milliseconds(30))
+    #expect(replicas.allSatisfy { !$0.isVisible })
+    #expect(primary.isVisible)
+    #expect(primary.level == .floating)
 }
 
 @Test func screenRatioDraggingUsesTheScreenInteriorAndFivePercentSteps() {
